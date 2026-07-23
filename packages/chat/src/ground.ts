@@ -31,12 +31,19 @@ export function isAtmospheric(text: string): boolean {
 
 /**
  * A line is grounded when it is atmospheric (logistics/greetings need no
- * anchor), too short to judge, or shares at least a third of its content
- * words with the beat's transcript.
+ * anchor), too short to judge, shares a third of its content words with the
+ * transcript, or anchors on any distinctive word (6+ chars) the presenter
+ * actually said. The distinctive-word pass exists so genuine references
+ * ("the diagnose part…") aren't killed by stopword-heavy phrasing.
  */
 export function grounded(lineText: string, transcript: string): boolean {
   if (isAtmospheric(lineText)) return true;
   const line = contentWords(lineText);
   if (line.size < 3) return true;
-  return overlapRatio(line, contentWords(transcript)) >= 1 / 3;
+  const transcriptWords = contentWords(transcript);
+  if (overlapRatio(line, transcriptWords) >= 1 / 3) return true;
+  for (const w of line) {
+    if (w.length >= 6 && transcriptWords.has(w)) return true;
+  }
+  return false;
 }

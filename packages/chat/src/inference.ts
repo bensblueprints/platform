@@ -91,7 +91,11 @@ export function createMockClient(): InferenceClient {
       const last = messages[messages.length - 1]?.content ?? "";
       const lines: { offset: number; name: string; mode: string; text: string }[] = [];
       const mentions = ["diagnose", "deploy", "65 percent", "Sarah", "One Time Suite", "worksheet", "replay", "framework"];
-      const count = Math.max(2, Math.min(6, Math.floor(last.length % 5) + 2));
+      // honor "Write exactly N lines" when the prompt asks for it
+      const requested = Number(last.match(/Write exactly (\d+) lines/i)?.[1]);
+      const count = Number.isFinite(requested) && requested > 0
+        ? Math.min(requested, 12)
+        : Math.max(2, Math.min(6, Math.floor(last.length % 5) + 2));
       for (let i = 0; i < count; i++) {
         const mention = mentions[(last.length + i) % mentions.length];
         const isQuestion = i % 3 === 1;

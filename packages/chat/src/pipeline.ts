@@ -139,7 +139,16 @@ async function generateBeatLines(
     });
   }
 
-  // §7.4 pairing: every question gets an admin answer 20-90s later
+  // §7.4 pairing: every question gets an admin answer 20-90s later.
+  // Templates vary (merge dedupes identical text) and stay atmospheric
+  // (link/replay/worksheet anchors) so grounding passes.
+  const ANSWER_TEMPLATES = [
+    "great question — dropping the link in the chat now",
+    "yes — the replay covers exactly that",
+    "good catch, adding it to the worksheet link now",
+    "answering that on the download link in just a sec",
+  ];
+  let answerIdx = 0;
   const answers: GenLine[] = [];
   for (const l of lines) {
     if (l.mode !== "question") continue;
@@ -152,7 +161,7 @@ async function generateBeatLines(
         persona: ADMIN_PERSONA,
         role: "admin",
         mode: "answer",
-        text: "great question — dropping the link in the chat now",
+        text: ANSWER_TEMPLATES[answerIdx++ % ANSWER_TEMPLATES.length],
         beat: beat.type,
       });
     }
