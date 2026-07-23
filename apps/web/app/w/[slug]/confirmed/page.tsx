@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { createDb } from "@platform/core";
+import {  getSharedDb  } from "@platform/core";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export default async function ConfirmedPage({
   const [{ slug }, { token }] = await Promise.all([params, searchParams]);
   if (!token) notFound();
 
-  const sql = createDb();
+  const sql = getSharedDb();
   const rows = await sql<any[]>`
     select r.first_name, r.timezone, r.access_token, w.title, s.starts_at, w.duration_seconds
     from registrants r

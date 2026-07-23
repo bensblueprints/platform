@@ -1,8 +1,8 @@
-import { createDb } from "@platform/core";
+import {  getSharedDb  } from "@platform/core";
 
 export const dynamic = "force-dynamic";
 
-const sql = createDb();
+const sql = getSharedDb();
 
 function icsDate(d: Date): string {
   return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");

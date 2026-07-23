@@ -1,4 +1,4 @@
-import { cleanupDeadSessions, createDb, materializeRecurringSessions } from "@platform/core";
+import {  cleanupDeadSessions, getSharedDb, materializeRecurringSessions  } from "@platform/core";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +8,7 @@ export async function GET(req: Request) {
   if (!expected || req.headers.get("x-seed-token") !== expected) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const sql = createDb();
+  const sql = getSharedDb();
   const m = await materializeRecurringSessions(sql);
   const c = await cleanupDeadSessions(sql);
   return Response.json({ created: m.created, deleted: c.deleted });

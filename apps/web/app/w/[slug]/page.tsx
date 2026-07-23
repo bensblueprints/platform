@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { createDb } from "@platform/core";
+import {  getSharedDb  } from "@platform/core";
 import { nextJitSlotMs } from "@platform/timeline";
 import RegisterForm from "../../../components/RegisterForm";
 
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function RegisterPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const sql = createDb();
+  const sql = getSharedDb();
   const webinars = await sql<any[]>`
     select * from webinars where slug = ${slug} limit 1
   `;

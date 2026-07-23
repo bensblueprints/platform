@@ -1,9 +1,9 @@
-import { createDb, materializeRecurringSessions } from "@platform/core";
+import {  getSharedDb, materializeRecurringSessions  } from "@platform/core";
 import { nextJitSlotMs } from "@platform/timeline";
 
 export const dynamic = "force-dynamic";
 
-const sql = createDb();
+const sql = getSharedDb();
 
 /**
  * Public registration (spec §11): creates the registrant with a random

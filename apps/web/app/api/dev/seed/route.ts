@@ -1,4 +1,4 @@
-import { createDb } from "@platform/core";
+import {  getSharedDb  } from "@platform/core";
 
 export const dynamic = "force-dynamic";
 
@@ -6,7 +6,7 @@ const DEMO_VIDEO_URL =
   "https://archive.org/download/1968-night-of-the-living-dead/Night%20of%20the%20Living%20Dead%20(1968)%20English.mp4";
 const DEMO_DURATION_SECONDS = 5752;
 
-const sql = createDb();
+const sql = getSharedDb();
 
 /**
  * Dev-only seed: upserts a webinar (idempotent) plus a fresh registrant,

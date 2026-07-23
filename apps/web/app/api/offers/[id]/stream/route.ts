@@ -1,8 +1,8 @@
-import { createDb } from "@platform/core";
+import {  getSharedDb  } from "@platform/core";
 
 export const dynamic = "force-dynamic";
 
-const sql = createDb();
+const sql = getSharedDb();
 
 /**
  * Server-sent events stream of an offer's units_sold (spec §9 price ticks).

@@ -1,8 +1,8 @@
-import { createDb } from "@platform/core";
+import {  getSharedDb  } from "@platform/core";
 
 export const dynamic = "force-dynamic";
 
-const sql = createDb();
+const sql = getSharedDb();
 
 /**
  * Dev-only demo offer seed. Query: ?webinar=<slug> (default demo),

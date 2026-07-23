@@ -1,11 +1,11 @@
-import { createDb } from "@platform/core";
+import {  getSharedDb  } from "@platform/core";
 import { createCheckoutSession } from "@platform/offers";
 import { offerWindowState, currentPriceCents } from "@platform/offers";
 import { offsetSeconds } from "@platform/timeline";
 
 export const dynamic = "force-dynamic";
 
-const sql = createDb();
+const sql = getSharedDb();
 
 /**
  * Creates a Stripe Checkout Session at click time with the current

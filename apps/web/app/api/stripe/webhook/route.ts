@@ -1,9 +1,9 @@
-import { createDb } from "@platform/core";
+import {  getSharedDb  } from "@platform/core";
 import { parseCheckoutCompleted, verifyWebhookSignature } from "@platform/offers";
 
 export const dynamic = "force-dynamic";
 
-const sql = createDb();
+const sql = getSharedDb();
 
 /**
  * Stripe webhook (spec §9, §16.4/16.5): checkout.session.completed is the

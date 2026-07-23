@@ -1,8 +1,8 @@
-import { createDb } from "@platform/core";
+import {  getSharedDb  } from "@platform/core";
 
 export const dynamic = "force-dynamic";
 
-const sql = createDb();
+const sql = getSharedDb();
 
 const DEMO_VIDEO_URL =
   "https://archive.org/download/1968-night-of-the-living-dead/Night%20of%20the%20Living%20Dead%20(1968)%20English.mp4";

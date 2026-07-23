@@ -1,9 +1,9 @@
-import { createDb } from "@platform/core";
+import {  getSharedDb  } from "@platform/core";
 import { lintAttendeeLines, parseChatCsv } from "@platform/chat";
 
 export const dynamic = "force-dynamic";
 
-const sql = createDb();
+const sql = getSharedDb();
 
 /**
  * Dev-only chat script import (admin UI lands in a later slice).

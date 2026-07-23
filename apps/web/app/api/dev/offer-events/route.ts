@@ -1,8 +1,8 @@
-import { createDb } from "@platform/core";
+import {  getSharedDb  } from "@platform/core";
 
 export const dynamic = "force-dynamic";
 
-const sql = createDb();
+const sql = getSharedDb();
 
 /** Dev-only offer event counts, for e2e assertions. ?offer=<id> */
 export async function GET(req: Request) {

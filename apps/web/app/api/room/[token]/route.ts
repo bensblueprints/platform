@@ -1,8 +1,8 @@
-import { createDb, getRoomPayload } from "@platform/core";
+import {  getSharedDb, getRoomPayload  } from "@platform/core";
 
 export const dynamic = "force-dynamic";
 
-const sql = createDb();
+const sql = getSharedDb();
 
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
