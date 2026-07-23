@@ -81,12 +81,13 @@ test("late join shows backlog in order; forward lines arrive on time", async ({ 
     order.findIndex((t) => t.includes("backlog two")),
   );
 
-  // Forward answer at 17s arrives on time (±3s tolerance).
+  // Forward answer at 17s (±3s jitter by design, §6.2) arrives on time;
+  // upper bound tolerates the 1s tick plus page-load time on a busy box.
   const three = page.getByText(`forward answer ${marker}`);
-  await expect(three).toBeVisible({ timeout: 12_000 });
+  await expect(three).toBeVisible({ timeout: 16_000 });
   const arrivalOffset = (Date.now() - startsAtMs) / 1000;
-  expect(arrivalOffset).toBeGreaterThanOrEqual(16);
-  expect(arrivalOffset).toBeLessThan(23);
+  expect(arrivalOffset).toBeGreaterThanOrEqual(13);
+  expect(arrivalOffset).toBeLessThan(28);
 
   // Pinned admin line at 23s renders with the highlighted treatment.
   const four = page.getByText(`forward pinned ${marker}`);

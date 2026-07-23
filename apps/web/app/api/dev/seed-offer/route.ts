@@ -24,29 +24,31 @@ export async function GET(req: Request) {
   const webinar = webinars[0];
   if (!webinar) return Response.json({ error: "unknown_webinar" }, { status: 404 });
 
-  await sql`
-    insert into offers (
-      webinar_id, name, headline, body, button_text,
-      start_offset_seconds, end_offset_seconds,
-      urgency_enabled, urgency_seconds, scarcity_enabled, inventory_total,
-      price_start_cents, price_increment_cents, price_cap_cents
-    ) values (
-      ${webinar.id}, 'Demo Offer', 'The One Time Suite', 'Everything from today''s session, packaged.', 'Get the Suite',
-      ${start}, null,
-      true, 600, true, 25,
-      10000, 500, 99700
-    )
-    on conflict do nothing
-  `;
-  // upsert-by-name semantics for repeat seeds
-  await sql`
+  // update-first, insert-if-missing: idempotent across repeated seeds
+  const updated = await sql`
     update offers set
       start_offset_seconds = ${start},
       urgency_enabled = true, urgency_seconds = 600,
       scarcity_enabled = true, inventory_total = 25,
       price_start_cents = 10000, price_increment_cents = 500, price_cap_cents = 99700
     where webinar_id = ${webinar.id} and name = 'Demo Offer'
+    returning id
   `;
+  if (updated.length === 0) {
+    await sql`
+      insert into offers (
+        webinar_id, name, headline, body, button_text,
+        start_offset_seconds, end_offset_seconds,
+        urgency_enabled, urgency_seconds, scarcity_enabled, inventory_total,
+        price_start_cents, price_increment_cents, price_cap_cents
+      ) values (
+        ${webinar.id}, 'Demo Offer', 'The One Time Suite', 'Everything from today''s session, packaged.', 'Get the Suite',
+        ${start}, null,
+        true, 600, true, 25,
+        10000, 500, 99700
+      )
+    `;
+  }
 
   const rows = await sql<{ id: string; units_sold: number }[]>`
     select id, units_sold from offers where webinar_id = ${webinar.id} and name = 'Demo Offer' limit 1
