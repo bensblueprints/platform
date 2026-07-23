@@ -71,12 +71,18 @@ function parseGeneratedLines(raw: string): { name: string; mode: string; text: s
     .map((l) => ({ name: l.name ?? "{{persona}}", mode: l.mode!, text: l.text! }));
 }
 
+interface PersonaUsage {
+  lastUsed: Map<string, number>;
+  counts: Map<string, number>;
+}
+
 async function generateBeatLines(
   inference: InferenceClient,
   beat: Beat,
   roster: Persona[],
   priorLines: GenLine[],
   rng: () => number,
+  usage: PersonaUsage,
 ): Promise<GenLine[]> {
   const target = targetLineCount(beat);
   const eligible = roster.filter((p) => p.arc.arriveOffset <= beat.end);
@@ -109,20 +115,29 @@ async function generateBeatLines(
 
   const parsed = parseGeneratedLines(raw);
   const offsets = burstOffsets(rng, parsed.length, beat.start + 3, Math.max(beat.start + 10, beat.end - 3));
-  const shuffled = [...pool].sort(() => rng() - 0.5);
 
-  const lines: GenLine[] = parsed.map((l, i) => {
-    const persona = shuffled[i % shuffled.length];
-    const mode: GenLine["mode"] = l.mode === "question" ? "question" : "chat";
-    return {
-      offsetSeconds: offsets[i] ?? beat.start + 3 + i * 7,
-      persona: l.name === "{{persona}}" ? persona.name : l.name,
+  // Global persona assignment (§7.3/§7.5 by construction): spread usage,
+  // never the same persona within 45s anywhere in the script.
+  const lines: GenLine[] = [];
+  for (let i = 0; i < parsed.length; i++) {
+    const t = offsets[i] ?? beat.start + 3 + i * 7;
+    const candidates = pool
+      .filter((p) => (usage.lastUsed.get(p.name) ?? -Infinity) <= t - 45)
+      .sort((a, b) => (usage.counts.get(a.name) ?? 0) - (usage.counts.get(b.name) ?? 0) || rng() - 0.5);
+    const persona = candidates[0];
+    if (!persona) continue; // nobody free at this offset — drop the line
+    usage.lastUsed.set(persona.name, t);
+    usage.counts.set(persona.name, (usage.counts.get(persona.name) ?? 0) + 1);
+    const l = parsed[i];
+    lines.push({
+      offsetSeconds: t,
+      persona: persona.name,
       role: "attendee",
-      mode,
+      mode: l.mode === "question" ? "question" : "chat",
       text: applyStyle(l.text, persona, rng),
       beat: beat.type,
-    };
-  });
+    });
+  }
 
   // §7.4 pairing: every question gets an admin answer 20-90s later
   const answers: GenLine[] = [];
@@ -183,7 +198,7 @@ export async function runGenerationPipeline(
     segments = await inference.transcribe(opts.videoUrl);
     usage.llmCalls++;
     await sql`
-      insert into transcript_cache (video_hash, transcript) values (${videoHash}, ${JSON.stringify(segments)})
+      insert into transcript_cache (video_hash, transcript) values (${videoHash}, ${JSON.stringify(segments)}::jsonb)
       on conflict (video_hash) do nothing
     `;
   }
@@ -217,7 +232,7 @@ export async function runGenerationPipeline(
       }));
     }
     await sql`
-      insert into beat_cache (transcript_hash, beats) values (${transcriptHash}, ${JSON.stringify(beats)})
+      insert into beat_cache (transcript_hash, beats) values (${transcriptHash}, ${JSON.stringify(beats)}::jsonb)
       on conflict (transcript_hash) do nothing
     `;
   }
@@ -232,8 +247,14 @@ export async function runGenerationPipeline(
   const keptLines = opts.onlyBeatType ? (opts.existingLines ?? []).filter((l) => l.beat !== opts.onlyBeatType) : [];
 
   const generated: GenLine[] = [...keptLines];
+  const personaUsage: PersonaUsage = { lastUsed: new Map(), counts: new Map() };
+  // seed spacing/counts from kept lines so regen respects the whole script
+  for (const l of keptLines) {
+    personaUsage.lastUsed.set(l.persona, Math.max(personaUsage.lastUsed.get(l.persona) ?? -Infinity, l.offsetSeconds));
+    personaUsage.counts.set(l.persona, (personaUsage.counts.get(l.persona) ?? 0) + 1);
+  }
   for (const beat of targetBeats) {
-    const beatLines = await generateBeatLines(inference, beat, roster, generated, rng);
+    const beatLines = await generateBeatLines(inference, beat, roster, generated, rng, personaUsage);
     usage.llmCalls++;
     generated.push(...beatLines);
   }
@@ -247,7 +268,7 @@ export async function runGenerationPipeline(
       const beat = targetBeats.find((b) => b.type === bt);
       if (!beat) continue;
       const without = lines.filter((l) => l.beat !== bt);
-      const regen = await generateBeatLines(inference, beat, roster, without, rng);
+      const regen = await generateBeatLines(inference, beat, roster, without, rng, personaUsage);
       usage.llmCalls++;
       lines = mergeLines(rng, [[...without, ...regen]]);
     }

@@ -118,7 +118,7 @@ const genWorker = new Worker(
         if (result.failures.length > 0) {
           await genSql`
             update generation_jobs set status = 'failed', error = ${JSON.stringify(result.failures)},
-              usage = ${JSON.stringify(result.usage)}, updated_at = now() where id = ${jobId}
+              usage = ${JSON.stringify(result.usage)}::jsonb, updated_at = now() where id = ${jobId}
           `;
           return;
         }
@@ -160,7 +160,7 @@ const genWorker = new Worker(
       if (result.failures.length > 0) {
         await genSql`
           update generation_jobs set status = 'failed', error = ${JSON.stringify(result.failures)},
-            usage = ${JSON.stringify(result.usage)}, updated_at = now() where id = ${jobId}
+            usage = ${JSON.stringify(result.usage)}::jsonb, updated_at = now() where id = ${jobId}
         `;
         console.warn(`[generate] ${jobId} failed validation:`, JSON.stringify(result.failures).slice(0, 300));
         return;
@@ -170,7 +170,7 @@ const genWorker = new Worker(
       for (const p of result.roster) {
         await genSql`
           insert into name_roster (webinar_id, display_name, persona)
-          values (${webinarId}, ${p.name}, ${JSON.stringify(p)})
+          values (${webinarId}, ${p.name}, ${JSON.stringify(p)}::jsonb)
         `;
       }
       await genSql`delete from chat_scripts where webinar_id = ${webinarId} and status = 'draft'`;
