@@ -11,6 +11,7 @@ Evergreen mode plays a pre-recorded video as a scheduled "live" session on a
 **Slice 2 (Phase 2 seeded chat): shipped and verified.**
 **Slice 3 (Phase 3 per-session variance + name roster): shipped and verified.**
 **Slice 4 (Phase 4 simulated attendee counter): shipped and verified.**
+**Slice 5 (Phase 5 offer + payments): shipped; live Stripe purchase pending API key.**
 
 - Live app: https://webinar-platform.212.28.184.24.sslip.io
 - Repo: https://github.com/bensblueprints/platform (public for now — no secrets here)
@@ -46,6 +47,15 @@ Phase 4 acceptance results (spec §15):
 - Count animates, never hard-swaps; instant under `prefers-reduced-motion`; compact status bar (live dot + title + count): PASS
 - `show_attendee_count = false` hides the module: PASS (e2e toggle)
 - Evergreen-only: the function lives in `packages/timeline/attendance.ts` with a header warning; live mode must use real counts (§8)
+
+Phase 5 acceptance results (spec §15):
+
+- Panel appears on time (start offset), entrance animated, collapsible, beneath the video on mobile: PASS
+- Per-attendee urgency countdown persists across refresh (localStorage, never resets): PASS
+- Impression/click events recorded server-side; impression idempotent per attendee: PASS
+- Price ladder computed server-side; `units_sold` increment → price rises by increment and pushes live to a second open browser: PASS (SQL-simulated purchase over SSE)
+- **Transport note:** spec names Supabase Realtime for ticks. This box's Kong gateway redirects every Supabase API route (incl. `/realtime/v1/websocket`) to `/login` (verified 2026-07-23), so browser→Realtime is not viable; ticks ship as SSE from our own app (`/api/offers/[id]/stream`) delivering the identical visible behavior. Swap back if Kong is fixed (migration 0006 already publishes `offers`).
+- Stripe Checkout Session created at click time with server-computed price; webhook is the only `units_sold` increment (idempotent via `stripe_session_id`): code shipped, **live test-purchase pending `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`**
 
 ## Repo map
 
