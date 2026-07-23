@@ -18,7 +18,10 @@
     "@platform/timeline": "*",
     "next": "^15.3.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "bullmq": "^5.34.0",
+    "ioredis": "^5.4.0",
+    "@platform/notifications": "*"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

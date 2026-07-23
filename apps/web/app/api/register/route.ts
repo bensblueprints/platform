@@ -1,5 +1,6 @@
 import {  getSharedDb, materializeRecurringSessions  } from "@platform/core";
 import { nextJitSlotMs } from "@platform/timeline";
+import { scheduleRegistrationNotifications } from "../../../lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -67,13 +68,32 @@ export async function POST(req: Request) {
   // ondemand: session is created lazily on first room hit (existing behavior)
 
   const token = crypto.randomUUID();
-  await sql`
+  const inserted = await sql<{ id: string }[]>`
     insert into registrants (webinar_id, session_id, email, first_name, phone, timezone, utm, access_token)
     values (
       ${w.id}, ${sessionId}, ${email}, ${body.firstName ?? null}, ${body.phone ?? null},
       ${timezone}, ${body.utm ? JSON.stringify(body.utm) : null}, ${token}
     )
+    returning id
   `;
+
+  let startsAtMs: number | null = null;
+  if (sessionId) {
+    const s = await sql<{ starts_at: Date }[]>`
+      select starts_at from sessions where id = ${sessionId} limit 1
+    `;
+    startsAtMs = s[0] ? s[0].starts_at.getTime() : null;
+  }
+
+  await scheduleRegistrationNotifications({
+    registrantId: inserted[0].id,
+    email,
+    firstName: body.firstName ?? null,
+    webinarTitle: w.title,
+    startsAtMs,
+    durationSeconds: w.duration_seconds,
+    joinUrl: `/room/${token}`,
+  });
 
   return Response.json({
     token,

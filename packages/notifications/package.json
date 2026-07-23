@@ -6,6 +6,12 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@platform/core": "*"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
   }
 }

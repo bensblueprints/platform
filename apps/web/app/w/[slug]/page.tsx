@@ -6,14 +6,30 @@ import RegisterForm from "../../../components/RegisterForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function RegisterPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+export default async function RegisterPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string>>;
+}) {
+  const [{ slug }, query] = await Promise.all([params, searchParams]);
   const sql = getSharedDb();
   const webinars = await sql<any[]>`
     select * from webinars where slug = ${slug} limit 1
   `;
   const w = webinars[0];
   if (!w) notFound();
+
+  // funnel top: record the visit (§11 analytics)
+  const utm: Record<string, string> = {};
+  for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"]) {
+    if (query[k]) utm[k] = query[k];
+  }
+  await sql`
+    insert into page_views (webinar_id, utm)
+    values (${w.id}, ${Object.keys(utm).length ? JSON.stringify(utm) : null})
+  `;
 
   let nextSessionAtMs: number | null = null;
   if (w.schedule_mode === "jit") {

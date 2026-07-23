@@ -1,6 +1,7 @@
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import { cleanupDeadSessions, createDb, materializeRecurringSessions } from "@platform/core";
+import { activeAdapters, resolvePostSessionKind, type NotificationPayload } from "@platform/notifications";
 
 const redisUrl = process.env.REDIS_URL;
 if (!redisUrl) throw new Error("REDIS_URL is not set");
@@ -37,5 +38,27 @@ const worker = new Worker(
 );
 
 worker.on("failed", (job, err) => console.error(`[worker] job ${job?.name} failed:`, err.message));
+
+// Notification reminders (spec §11): confirm, 24h/1h/10m, attended/no-show
+const notifWorker = new Worker(
+  "notifications",
+  async (job) => {
+    const payload = job.data as NotificationPayload & { kind?: string };
+    let kind = payload.kind ?? job.name;
+    if (job.name === "post-session") {
+      const rows = await sql<{ c: number }[]>`
+        select count(*)::int as c from attendances where registrant_id = ${payload.registrantId}
+      `;
+      kind = resolvePostSessionKind(rows[0].c);
+    }
+    for (const adapter of activeAdapters()) {
+      await adapter.send(sql, { ...payload, kind });
+    }
+    console.log(`[notify] ${kind} -> ${payload.email}`);
+  },
+  { connection },
+);
+
+notifWorker.on("failed", (job, err) => console.error(`[notify] job ${job?.name} failed:`, err.message));
 
 console.log("[workers] up — materialize every 15m, cleanup daily");
