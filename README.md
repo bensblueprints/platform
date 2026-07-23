@@ -14,6 +14,7 @@ Evergreen mode plays a pre-recorded video as a scheduled "live" session on a
 **Slice 5 (Phase 5 offer + payments): shipped; live Stripe purchase pending API key.**
 **Slice 6 (Phase 6 registration + scheduling): shipped and verified.**
 **Slice 7 (Phase 7 real chat + moderator console): shipped and verified.**
+**Slice 8 (Phase 8 notifications + analytics): shipped and verified.**
 
 - Live app: https://webinar-platform.212.28.184.24.sslip.io
 - Repo: https://github.com/bensblueprints/platform (public for now — no secrets here)
@@ -77,6 +78,12 @@ Phase 7 acceptance results (spec §15):
 - Attendance rows with join offset + 30s heartbeats + exit offset (feeds Phase 8 analytics): PASS
 - Interim console auth is `ADMIN_KEY` env (documented; real Supabase Auth lands with the tenant spec)
 - Scale fix this slice: one shared Postgres pool per process (per-module pools had exhausted `max_connections`; bumped to 300 and pooled — suite went from 16 failures to 24/24 at ~1 min)
+
+Phase 8 results (spec §15):
+
+- Reminder sequences (confirm / 24h / 1h / 10m / attended-or-no-show post-session) as BullMQ delayed jobs enqueued at registration, processed by `webinar-workers`: PASS (unit plan math + e2e queue inspection). Gotcha fixed: BullMQ forbids `:` in job ids
+- Adapters: `log` (always on, writes `notifications_log`), `ghl` (GoHighLevel upsert — spec's recommended default — activates with `GHL_API_KEY`+`GHL_LOCATION_ID`), send failures never block registration
+- `/admin/analytics/[slug]`: visitors (tracked via `/w/[slug]` page_views) → registrants → attendees → show rate; offer funnel impressions→clicks→purchases + revenue per registrant/attendee; retention-per-30s SVG hero with the offer start marked: PASS
 
 ## Repo map
 
