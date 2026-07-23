@@ -10,6 +10,7 @@ Evergreen mode plays a pre-recorded video as a scheduled "live" session on a
 **Slice 1 (infrastructure + Phase 1 timeline core): shipped and verified.**
 **Slice 2 (Phase 2 seeded chat): shipped and verified.**
 **Slice 3 (Phase 3 per-session variance + name roster): shipped and verified.**
+**Slice 4 (Phase 4 simulated attendee counter): shipped and verified.**
 
 - Live app: https://webinar-platform.212.28.184.24.sslip.io
 - Repo: https://github.com/bensblueprints/platform (public for now — no secrets here)
@@ -36,6 +37,15 @@ Phase 3 acceptance results (spec §15):
 - `{{name}}` resolves against `name_roster` via a stable per-session index map; literal names pass through: PASS (unit + e2e; tokens never render literally)
 - Admin/question/answer lines are never dropped (preserves the §7.4 pairing invariant — stricter than §6.2's letter, documented in the slice 3 design doc): PASS
 - Suite runs parallel-safe: each e2e spec seeds its own isolated webinar (`?webinar=<slug>`)
+
+Phase 4 acceptance results (spec §15):
+
+- Ramps (logistic), plateaus, decays to `end_pct * peak`: PASS (unit tests; ramp verified live on a 1-minute test curve)
+- Never zero, never decreases during ramp: PASS (full-sweep unit tests + live ramp check)
+- Identical on refresh at the same offset: PASS (deterministic per `(seed, 10s bucket)`; e2e refresh check)
+- Count animates, never hard-swaps; instant under `prefers-reduced-motion`; compact status bar (live dot + title + count): PASS
+- `show_attendee_count = false` hides the module: PASS (e2e toggle)
+- Evergreen-only: the function lives in `packages/timeline/attendance.ts` with a header warning; live mode must use real counts (§8)
 
 ## Repo map
 
