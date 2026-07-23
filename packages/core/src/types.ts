@@ -47,6 +47,28 @@ export interface RegistrantRow {
   registered_at: Date;
 }
 
+export type ChatRole = "admin" | "attendee";
+export type ChatMode = "chat" | "question" | "answer" | "highlighted" | "tip";
+
+export interface ChatScriptRow {
+  offset_seconds: number;
+  display_name: string;
+  role: ChatRole;
+  message: string;
+  mode: ChatMode;
+  sort_order: number | null;
+}
+
+/** camelCase chat line in the room payload contract. */
+export interface ChatLine {
+  offsetSeconds: number;
+  displayName: string;
+  role: ChatRole;
+  message: string;
+  mode: ChatMode;
+  sortOrder: number | null;
+}
+
 export interface RoomPayload {
   webinar: {
     title: string;
@@ -60,4 +82,5 @@ export interface RoomPayload {
   registrant: { firstName: string | null };
   over: boolean;
   redirectUrl?: string;
+  chat: ChatLine[];
 }

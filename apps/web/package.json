@@ -15,7 +15,9 @@
     "@platform/timeline": "*",
     "next": "^15.3.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "@platform/chat": "*",
+    "@platform/room-ui": "*"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

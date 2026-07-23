@@ -41,4 +41,31 @@ describe("toRoomPayload", () => {
     expect(p.webinar.videoUrl).toBeNull();
     expect(p.registrant.firstName).toBeNull();
   });
+
+  it("defaults chat to an empty array", () => {
+    expect(toRoomPayload(w, s, r, 1_000_500).chat).toEqual([]);
+  });
+
+  it("maps chat script rows into the payload contract", () => {
+    const p = toRoomPayload(w, s, r, 1_000_500, [
+      {
+        offset_seconds: 134,
+        display_name: "Marcus T.",
+        role: "attendee",
+        message: "Joining from Denver",
+        mode: "chat",
+        sort_order: 0,
+      },
+    ]);
+    expect(p.chat).toEqual([
+      {
+        offsetSeconds: 134,
+        displayName: "Marcus T.",
+        role: "attendee",
+        message: "Joining from Denver",
+        mode: "chat",
+        sortOrder: 0,
+      },
+    ]);
+  });
 });

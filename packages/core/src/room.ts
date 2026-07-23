@@ -1,11 +1,30 @@
 import type { Sql } from "./db";
-import type { RegistrantRow, RoomPayload, SessionRow, WebinarRow } from "./types";
+import type {
+  ChatLine,
+  ChatScriptRow,
+  RegistrantRow,
+  RoomPayload,
+  SessionRow,
+  WebinarRow,
+} from "./types";
+
+export function toChatLine(row: ChatScriptRow): ChatLine {
+  return {
+    offsetSeconds: row.offset_seconds,
+    displayName: row.display_name,
+    role: row.role,
+    message: row.message,
+    mode: row.mode,
+    sortOrder: row.sort_order,
+  };
+}
 
 export function toRoomPayload(
   w: Pick<WebinarRow, "title" | "duration_seconds" | "video_url" | "show_attendee_count" | "allow_real_chat">,
   s: Pick<SessionRow, "id" | "starts_at" | "seed">,
   r: Pick<RegistrantRow, "first_name">,
   nowMs: number,
+  chat: ChatScriptRow[] = [],
 ): RoomPayload {
   const startsAtMs = s.starts_at.getTime();
   return {
@@ -20,6 +39,7 @@ export function toRoomPayload(
     serverNowMs: nowMs,
     registrant: { firstName: r.first_name },
     over: nowMs - startsAtMs >= w.duration_seconds * 1000,
+    chat: chat.map(toChatLine),
   };
 }
 
@@ -70,5 +90,12 @@ export async function getRoomPayload(sql: Sql, token: string): Promise<RoomPaylo
   const session = sessions[0];
   if (!session) return null;
 
-  return toRoomPayload(webinar, session, reg, Date.now());
+  const chatRows = await sql<ChatScriptRow[]>`
+    select offset_seconds, display_name, role, message, mode, sort_order
+    from chat_scripts
+    where webinar_id = ${webinar.id}
+    order by offset_seconds asc, sort_order asc
+  `;
+
+  return toRoomPayload(webinar, session, reg, Date.now(), chatRows);
 }
