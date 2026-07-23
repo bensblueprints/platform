@@ -87,17 +87,26 @@ export function createMockClient(): InferenceClient {
       ];
     },
     async generate(messages) {
-      // extract the last user message; produce JSON lines referencing transcript terms
+      // extract the last user message
       const last = messages[messages.length - 1]?.content ?? "";
-      const lines: { offset: number; name: string; mode: string; text: string }[] = [];
-      const mentions = ["diagnose", "deploy", "65 percent", "Sarah", "One Time Suite", "worksheet", "replay", "framework"];
-      // honor "Write exactly N lines" when the prompt asks for it
+      // mine mentions from the transcript slice in the prompt (mirrors the
+      // real LLM being grounded by instruction); fall back to global terms
+      const slice = last.match(/"""([\s\S]*?)"""/)?.[1] ?? last;
+      const mined = (slice.toLowerCase().match(/[a-z0-9%]{5,}/g) ?? []).filter(
+        (w, i, arr) =>
+          arr.indexOf(w) === i &&
+          !["welcome", "everyone", "thanks", "joining", "session", "today", "covered", "templates", "using", "their", "there", "which", "while", "available", "exactly", "would", "could", "should"].includes(w),
+      );
+      const mentions = mined.length > 0 ? mined : ["diagnose", "framework", "replay"];
+      const beatType = last.match(/Beat type: (\w+)/)?.[1] ?? "teaching";
       const requested = Number(last.match(/Write exactly (\d+) lines/i)?.[1]);
       const count = Number.isFinite(requested) && requested > 0
         ? Math.min(requested, 12)
         : Math.max(2, Math.min(6, Math.floor(last.length % 5) + 2));
+
+      const lines: { offset: number; name: string; mode: string; text: string }[] = [];
       for (let i = 0; i < count; i++) {
-        const mention = mentions[(last.length + i) % mentions.length];
+        const mention = mentions[i % mentions.length];
         const isQuestion = i % 3 === 1;
         lines.push({
           offset: 0,
@@ -105,7 +114,7 @@ export function createMockClient(): InferenceClient {
           mode: isQuestion ? "question" : "chat",
           text: isQuestion
             ? `wait, did he say ${mention} or am I hearing that wrong?`
-            : `the ${mention} part makes so much sense`,
+            : `the ${mention} point at this ${beatType} part is exactly what I needed (${i})`,
         });
       }
       return JSON.stringify({ lines });
