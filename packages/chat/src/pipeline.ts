@@ -126,15 +126,30 @@ async function generateBeatLines(
   const anchors = contentWords(beat.transcript);
 
   // Global persona assignment (§7.3/§7.5 by construction): spread usage,
-  // never the same persona within 45s anywhere in the script.
+  // never the same persona within 45s, and a persona only speaks after
+  // their arc's arrival offset (late arrivers can't talk early).
   const lines: GenLine[] = [];
   for (let i = 0; i < parsed.length; i++) {
     const t = offsets[i] ?? beat.start + 3 + i * 7;
-    const candidates = pool
-      .filter((p) => (usage.lastUsed.get(p.name) ?? -Infinity) <= t - 45)
+    const candidates = roster
+      .filter(
+        (p) =>
+          p.arc.arriveOffset <= t && (usage.lastUsed.get(p.name) ?? -Infinity) <= t - 45,
+      )
       .sort((a, b) => (usage.counts.get(a.name) ?? 0) - (usage.counts.get(b.name) ?? 0) || rng() - 0.5);
-    const persona = candidates[0];
-    if (!persona) continue; // nobody free at this offset — drop the line
+    // fallback: nobody free inside 45s — least-recent speaker at ≥30s
+    // rather than dropping the line (drops break the density gate)
+    const fallback =
+      candidates.length === 0
+        ? roster
+            .filter(
+              (p) =>
+                p.arc.arriveOffset <= t && (usage.lastUsed.get(p.name) ?? -Infinity) <= t - 30,
+            )
+            .sort((a, b) => (usage.lastUsed.get(a.name) ?? 0) - (usage.lastUsed.get(b.name) ?? 0))[0]
+        : undefined;
+    const persona = candidates[0] ?? fallback;
+    if (!persona) continue; // genuinely nobody available — drop the line
     usage.lastUsed.set(persona.name, t);
     usage.counts.set(persona.name, (usage.counts.get(persona.name) ?? 0) + 1);
     const l = parsed[i];
@@ -287,6 +302,23 @@ export async function runGenerationPipeline(
     generated.push(...beatLines);
   }
   let lines = ensurePairing(mergeLines(rng, [generated]), rng);
+
+  // Top-up: if organic volume is below the density band's floor, generate
+  // once more for the sparsest beat before validating (§7.4). Persona
+  // starvation on short scripts is the usual cause of the shortfall.
+  const organicCount = (ls: GenLine[]) =>
+    ls.filter((l) => !(l.role === "admin" && l.mode === "answer")).length;
+  const totalTarget = beats.reduce((s, b) => s + targetLineCount(b), 0);
+  if (organicCount(lines) < totalTarget - 2) {
+    const sparsest = targetBeats
+      .map((b) => ({ b, gap: targetLineCount(b) - organicCount(lines.filter((l) => l.beat === b.type)) }))
+      .sort((x, y) => y.gap - x.gap)[0]?.b;
+    if (sparsest) {
+      const more = await generateBeatLines(inference, sparsest, roster, lines, rng, personaUsage);
+      usage.llmCalls++;
+      lines = ensurePairing(mergeLines(rng, [[...lines, ...more]]), rng);
+    }
+  }
 
   // 6. validate; regenerate failing beats once (§7.5)
   let failures = validateScript(lines, beats).failures;

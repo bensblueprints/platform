@@ -120,6 +120,7 @@ const genWorker = new Worker(
             update generation_jobs set status = 'failed', error = ${genSql.json(result.failures)},
               usage = ${genSql.json(result.usage)}, updated_at = now() where id = ${jobId}
           `;
+          console.warn(`[generate] regen ${jobId} failed validation:`, JSON.stringify(result.failures).slice(0, 400));
           return;
         }
 

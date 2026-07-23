@@ -69,7 +69,9 @@ export function generateRoster(rng: () => number, count: number, _geography = "U
       archetype,
       style: { caps, emoji, typos: rng() < 0.25 },
       arc: {
-        arriveOffset: late ? 600 + Math.floor(rng() * 1800) : Math.floor(rng() * 300),
+        // most personas are already in the room at 0:00 (real rooms fill
+        // before start); some trickle in, ~10% are true late arrivers
+        arriveOffset: late ? 600 + Math.floor(rng() * 1800) : rng() < 0.6 ? 0 : Math.floor(rng() * 300),
         windowSec: 600 + Math.floor(rng() * 3000),
         reappearAtOffer: rng() < 0.25,
         oneShot: rng() < 0.1,

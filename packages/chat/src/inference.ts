@@ -71,11 +71,10 @@ export function createOpenAiClient(opts: {
   };
 }
 
-/**
- * Mock client for development and e2e: deterministic transcript + templated
- * lines that reference the transcript (so grounding validation passes)
- * without any keys. Activated by INFERENCE_BASE_URL=mock.
- */
+/** Mock client: deterministic transcript + templated lines. Module-level
+ * sequence counter keeps every generated line's text unique across calls
+ * (merge dedupes identical text; without this, top-up/regen calls collide). */
+let mockSeq = 0;
 export function createMockClient(): InferenceClient {
   return {
     async transcribe() {
@@ -103,6 +102,7 @@ export function createMockClient(): InferenceClient {
         : Math.max(2, Math.min(6, Math.floor(last.length % 5) + 2));
 
       const lines: { offset: number; name: string; mode: string; text: string }[] = [];
+      const seq = mockSeq++;
       for (let i = 0; i < count; i++) {
         const mention = mentions[i % mentions.length];
         const isQuestion = i % 3 === 1;
@@ -111,8 +111,8 @@ export function createMockClient(): InferenceClient {
           name: "{{persona}}",
           mode: isQuestion ? "question" : "chat",
           text: isQuestion
-            ? `wait, did he say ${mention} or am I hearing that wrong?`
-            : `the ${mention} point at this ${beatType} part is exactly what I needed (${i})`,
+            ? `wait, did he say ${mention} or am I hearing that wrong? (${seq}.${i})`
+            : `the ${mention} point at this ${beatType} part is exactly what I needed (${seq}.${i})`,
         });
       }
       return JSON.stringify({ lines });
