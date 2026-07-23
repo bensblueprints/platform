@@ -17,9 +17,11 @@ let startsAtMs: number;
 
 function csv(): string {
   // offsets: 5s, 10s backlog when joining at ~12s; 17s, 23s forward.
+  // Phase 3 note: all lines use non-droppable modes (question/answer/
+  // highlighted) so this Phase 2 spec stays deterministic under variance.
   return [
     "Hour,Minute,Second,Name,Role,Message,Mode",
-    `0,0,05,Marcus T.,Attendee,backlog one ${marker},chat`,
+    `0,0,05,Marcus T.,Attendee,backlog one ${marker},question`,
     `0,0,10,Casey L.,Attendee,backlog two ${marker},question`,
     `0,0,17,Sarah (Support),Admin,forward answer ${marker},answer`,
     `0,0,23,Sarah (Support),Admin,forward pinned ${marker},highlighted`,
@@ -27,14 +29,14 @@ function csv(): string {
 }
 
 test.beforeAll(async () => {
-  const imp = await fetch(`${baseURL}/api/dev/import-chat?webinar=demo&reset=1`, {
+  const imp = await fetch(`${baseURL}/api/dev/import-chat?webinar=demo-chat&reset=1`, {
     method: "POST",
     headers: { "x-seed-token": seedToken, "content-type": "text/plain" },
     body: csv(),
   });
   expect(imp.status).toBe(200);
 
-  const seed = await fetch(`${baseURL}/api/dev/seed`, {
+  const seed = await fetch(`${baseURL}/api/dev/seed?webinar=demo-chat`, {
     headers: { "x-seed-token": seedToken },
   }).then((r) => r.json());
   token = seed.token;
@@ -91,13 +93,13 @@ test("late join shows backlog in order; forward lines arrive on time", async ({ 
 
 test("question lines carry the Q badge; admin rows are distinct", async ({ page }) => {
   // Independent session for independent timing.
-  const seed = await fetch(`${baseURL}/api/dev/seed`, {
+  const seed = await fetch(`${baseURL}/api/dev/seed?webinar=demo-chat`, {
     headers: { "x-seed-token": seedToken },
   }).then((r) => r.json());
   await page.goto(`/room/${seed.token}`); // materializes the on-demand session
   await page.waitForTimeout(11_000);
   await page.reload(); // now at ~11s offset
 
-  await expect(page.locator('[data-role="attendee"][data-mode="question"]')).toHaveCount(1);
+  await expect(page.locator('[data-role="attendee"][data-mode="question"]')).toHaveCount(2);
   await expect(page.locator('[data-role="admin"]')).toHaveCount(0); // admins arrive later (17s/23s)
 });

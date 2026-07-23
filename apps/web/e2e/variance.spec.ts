@@ -20,18 +20,18 @@ function csv(): string {
 }
 
 async function newTokenPayload(): Promise<any> {
-  const seed = await fetch(`${baseURL}/api/dev/seed`, {
+  const seed = await fetch(`${baseURL}/api/dev/seed?webinar=demo-var`, {
     headers: { "x-seed-token": seedToken },
   }).then((r) => r.json());
   return fetch(`${baseURL}/api/room/${seed.token}`, { cache: "no-store" }).then((r) => r.json());
 }
 
 test.beforeAll(async () => {
-  const roster = await fetch(`${baseURL}/api/dev/seed-roster?webinar=demo&reset=1`, {
+  const roster = await fetch(`${baseURL}/api/dev/seed-roster?webinar=demo-var&reset=1`, {
     headers: { "x-seed-token": seedToken },
   });
   expect(roster.status).toBe(200);
-  const imp = await fetch(`${baseURL}/api/dev/import-chat?webinar=demo&reset=1`, {
+  const imp = await fetch(`${baseURL}/api/dev/import-chat?webinar=demo-var&reset=1`, {
     method: "POST",
     headers: { "x-seed-token": seedToken, "content-type": "text/plain" },
     body: csv(),
@@ -40,7 +40,7 @@ test.beforeAll(async () => {
 });
 
 test("same session is identical across refreshes", async () => {
-  const seed = await fetch(`${baseURL}/api/dev/seed`, {
+  const seed = await fetch(`${baseURL}/api/dev/seed?webinar=demo-var`, {
     headers: { "x-seed-token": seedToken },
   }).then((r) => r.json());
   const p1 = await fetch(`${baseURL}/api/room/${seed.token}`, { cache: "no-store" }).then((r) => r.json());
@@ -65,7 +65,7 @@ test("admin and answer lines survive variance in every session", async () => {
 });
 
 test("{{name}} tokens resolve to roster names and never render literally", async ({ page }) => {
-  const seed = await fetch(`${baseURL}/api/dev/seed`, {
+  const seed = await fetch(`${baseURL}/api/dev/seed?webinar=demo-var`, {
     headers: { "x-seed-token": seedToken },
   }).then((r) => r.json());
   const payload = await fetch(`${baseURL}/api/room/${seed.token}`, { cache: "no-store" }).then((r) =>
