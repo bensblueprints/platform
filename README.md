@@ -9,6 +9,7 @@ Evergreen mode plays a pre-recorded video as a scheduled "live" session on a
 
 **Slice 1 (infrastructure + Phase 1 timeline core): shipped and verified.**
 **Slice 2 (Phase 2 seeded chat): shipped and verified.**
+**Slice 3 (Phase 3 per-session variance + name roster): shipped and verified.**
 
 - Live app: https://webinar-platform.212.28.184.24.sslip.io
 - Repo: https://github.com/bensblueprints/platform (public for now — no secrets here)
@@ -27,6 +28,14 @@ Phase 2 acceptance results (spec §15):
 - Late join renders the full backlog in order; forward lines arrive on time: PASS (Playwright, production — join at ~12 s, lines at 17 s/23 s land within tolerance)
 - Three treatments (attendee / admin / highlighted) + Q badge, autoscroll-only-at-bottom with new-message pill: PASS
 - Chat rides the wall-clock tick, immune to background-tab throttle (§16.2): by design, covered by clock unit tests
+
+Phase 3 acceptance results (spec §15):
+
+- Two sessions show different names and slightly different chat: PASS (Playwright, production — distinct seeds produce distinct drop/jitter/roster draws)
+- The same session is identical across refreshes: PASS (deterministic transform keyed on `session.seed`)
+- `{{name}}` resolves against `name_roster` via a stable per-session index map; literal names pass through: PASS (unit + e2e; tokens never render literally)
+- Admin/question/answer lines are never dropped (preserves the §7.4 pairing invariant — stricter than §6.2's letter, documented in the slice 3 design doc): PASS
+- Suite runs parallel-safe: each e2e spec seeds its own isolated webinar (`?webinar=<slug>`)
 
 ## Repo map
 
