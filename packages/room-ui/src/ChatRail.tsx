@@ -64,7 +64,7 @@ export default function ChatRail({ lines, offsetSeconds }: { lines: ChatLine[]; 
       >
         {vis.length === 0 && <p className="text-sm text-zinc-500">The conversation appears here.</p>}
         {vis.map((l, i) => (
-          <ChatRow key={`${l.offset_seconds}-${l.sort_order ?? i}`} line={l} />
+          <ChatRow key={`${l.offset_seconds}-${l.sortOrder ?? i}`} line={l} />
         ))}
       </div>
       {!atBottom && newCount > 0 && (
