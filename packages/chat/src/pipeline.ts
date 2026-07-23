@@ -194,6 +194,7 @@ export async function runGenerationPipeline(
     select transcript from transcript_cache where video_hash = ${videoHash} limit 1
   `;
   let segments = cachedT[0]?.transcript;
+  if (typeof segments === "string") segments = JSON.parse(segments); // legacy stringified rows
   if (!segments) {
     segments = await inference.transcribe(opts.videoUrl);
     usage.llmCalls++;
@@ -210,6 +211,7 @@ export async function runGenerationPipeline(
     select beats from beat_cache where transcript_hash = ${transcriptHash} limit 1
   `;
   let beats = cachedB[0]?.beats;
+  if (typeof beats === "string") beats = JSON.parse(beats); // legacy stringified rows
   if (!beats) {
     if (opts.useMockBeats) {
       beats = heuristicBeats(segments);
