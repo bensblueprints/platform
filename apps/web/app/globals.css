@@ -3,3 +3,20 @@
 /* Workspace packages ship raw TS source; v4's auto-detection skips node_modules. */
 @source "../../packages/room-ui/src";
 @source "../../packages/chat/src";
+
+@keyframes offer-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="offer-panel"] {
+    animation: none !important;
+  }
+}

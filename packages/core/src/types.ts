@@ -85,6 +85,51 @@ export const DEFAULT_CURVE_CONFIG: CurveConfig = {
   jitterPct: 0.03,
 }
 
+export interface OfferRow {
+  id: string;
+  webinar_id: string;
+  name: string;
+  headline: string;
+  body: string | null;
+  image_url: string | null;
+  button_text: string;
+  button_url: string | null;
+  stripe_price_id: string | null;
+  start_offset_seconds: number;
+  end_offset_seconds: number | null;
+  urgency_enabled: boolean | null;
+  urgency_seconds: number | null;
+  scarcity_enabled: boolean | null;
+  inventory_total: number | null;
+  price_start_cents: number | null;
+  price_increment_cents: number | null;
+  price_cap_cents: number | null;
+  units_sold: number | null;
+  broadcast_sales: boolean | null;
+}
+
+export interface OfferPayload {
+  id: string;
+  name: string;
+  headline: string;
+  body: string | null;
+  imageUrl: string | null;
+  buttonText: string;
+  buttonUrl: string | null;
+  startOffsetSeconds: number;
+  endOffsetSeconds: number | null;
+  urgencyEnabled: boolean;
+  urgencySeconds: number | null;
+  scarcityEnabled: boolean;
+  inventoryTotal: number | null;
+  unitsSold: number;
+  currentPriceCents: number | null;
+  nextPriceCents: number | null;
+  priceStartCents: number | null;
+  priceIncrementCents: number | null;
+  priceCapCents: number | null;
+}
+
 export interface RoomPayload {
   webinar: {
     title: string;
@@ -100,4 +145,5 @@ export interface RoomPayload {
   over: boolean;
   redirectUrl?: string;
   chat: ChatLine[];
+  offers: OfferPayload[];
 }

@@ -1,10 +1,13 @@
 import type { Sql } from "./db";
 import { applySessionVariance, resolveNameTokens } from "@platform/chat";
+import { currentPriceCents, nextPriceCents } from "@platform/offers";
 import {
   DEFAULT_CURVE_CONFIG,
   type ChatLine,
   type ChatScriptRow,
   type CurveConfig,
+  type OfferPayload,
+  type OfferRow,
   type RegistrantRow,
   type RoomPayload,
   type SessionRow,
@@ -22,6 +25,36 @@ export function toChatLine(row: ChatScriptRow): ChatLine {
   };
 }
 
+export function toOfferPayload(row: OfferRow): OfferPayload {
+  const ladder = {
+    priceStartCents: row.price_start_cents,
+    priceIncrementCents: row.price_increment_cents,
+    priceCapCents: row.price_cap_cents,
+  };
+  const unitsSold = row.units_sold ?? 0;
+  return {
+    id: row.id,
+    name: row.name,
+    headline: row.headline,
+    body: row.body,
+    imageUrl: row.image_url,
+    buttonText: row.button_text,
+    buttonUrl: row.button_url,
+    startOffsetSeconds: row.start_offset_seconds,
+    endOffsetSeconds: row.end_offset_seconds,
+    urgencyEnabled: row.urgency_enabled ?? false,
+    urgencySeconds: row.urgency_seconds,
+    scarcityEnabled: row.scarcity_enabled ?? false,
+    inventoryTotal: row.inventory_total,
+    unitsSold,
+    currentPriceCents: row.price_start_cents == null ? null : currentPriceCents(ladder, unitsSold),
+    nextPriceCents: row.price_start_cents == null ? null : nextPriceCents(ladder, unitsSold),
+    priceStartCents: row.price_start_cents,
+    priceIncrementCents: row.price_increment_cents,
+    priceCapCents: row.price_cap_cents,
+  };
+}
+
 export function toRoomPayload(
   w: Pick<WebinarRow, "title" | "duration_seconds" | "video_url" | "show_attendee_count" | "allow_real_chat">,
   s: Pick<SessionRow, "id" | "starts_at" | "seed">,
@@ -29,6 +62,7 @@ export function toRoomPayload(
   nowMs: number,
   chat: ChatLine[] = [],
   curve: CurveConfig = DEFAULT_CURVE_CONFIG,
+  offers: OfferPayload[] = [],
 ): RoomPayload {
   const startsAtMs = s.starts_at.getTime();
   return {
@@ -45,6 +79,7 @@ export function toRoomPayload(
     registrant: { firstName: r.first_name },
     over: nowMs - startsAtMs >= w.duration_seconds * 1000,
     chat,
+    offers,
   };
 }
 
@@ -141,5 +176,9 @@ export async function getRoomPayload(sql: Sql, token: string): Promise<RoomPaylo
       }
     : DEFAULT_CURVE_CONFIG;
 
-  return toRoomPayload(webinar, session, reg, Date.now(), chat, curve);
+  const offerRows = await sql<OfferRow[]>`
+    select * from offers where webinar_id = ${webinar.id} order by created_at asc
+  `;
+
+  return toRoomPayload(webinar, session, reg, Date.now(), chat, curve, offerRows.map(toOfferPayload));
 }

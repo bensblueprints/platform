@@ -9,5 +9,5 @@ export default async function RoomPage({ params }: { params: Promise<{ token: st
   const payload = await getRoomPayload(createDb(), token);
   if (!payload) notFound();
   if (payload.over) redirect(payload.redirectUrl ?? "/");
-  return <RoomClient payload={payload} />;
+  return <RoomClient payload={payload} token={token} />;
 }
