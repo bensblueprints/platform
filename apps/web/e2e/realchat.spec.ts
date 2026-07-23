@@ -69,16 +69,18 @@ test("A never sees B's message; moderator sees both; broadcast reaches both", as
 
   // moderator private reply → only the target sees it
   const markerPriv = `private-${Date.now()}`;
-  const replyBtn = mod.getByTestId("mod-inbox").locator('[data-testid^="reply-"]').first();
-  await replyBtn.click();
+  // reply to A's message specifically (the inbox also holds older runs' messages)
+  await mod
+    .locator('[data-testid="mod-inbox"] > div', { hasText: markerA })
+    .locator('[data-testid^="reply-"]')
+    .click();
   await mod.getByPlaceholder("Private reply…").fill(markerPriv);
   await mod.getByRole("button", { name: "Send privately" }).click();
 
   await expect(mod.getByTestId("replying-to")).toHaveCount(0);
-  // exactly one of the two attendees sees it
-  const seesA = await pageA.getByText(markerPriv).count();
-  const seesB = await pageB.getByText(markerPriv).count();
-  expect(seesA + seesB).toBe(1);
+  // A (the target) sees it; B never does
+  await expect(pageA.getByText(markerPriv)).toBeVisible({ timeout: 10_000 });
+  await expect(pageB.getByText(markerPriv)).toHaveCount(0);
 
   await pageB.close();
   await mod.close();

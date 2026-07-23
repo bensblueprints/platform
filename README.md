@@ -13,6 +13,7 @@ Evergreen mode plays a pre-recorded video as a scheduled "live" session on a
 **Slice 4 (Phase 4 simulated attendee counter): shipped and verified.**
 **Slice 5 (Phase 5 offer + payments): shipped; live Stripe purchase pending API key.**
 **Slice 6 (Phase 6 registration + scheduling): shipped and verified.**
+**Slice 7 (Phase 7 real chat + moderator console): shipped and verified.**
 
 - Live app: https://webinar-platform.212.28.184.24.sslip.io
 - Repo: https://github.com/bensblueprints/platform (public for now — no secrets here)
@@ -66,6 +67,16 @@ Phase 6 acceptance results (spec §15):
 - Registration page `/w/[slug]`, confirmation with localized time + zone abbreviation, `.ics` download, UTM capture, on-demand register→join end-to-end: PASS
 - Cleanup: workers deleted 38 dead scheduled sessions on first run (§16.7)
 - Infra note: `webinar-redis` (BullMQ) + `webinar-workers` app now run on Coolify; do not trigger two app builds at once on this box (concurrent builds OOM'd once — run them serially)
+
+Phase 7 acceptance results (spec §15):
+
+- Attendee A never sees attendee B's message (SQL visibility filter + unit tests + e2e): PASS
+- Moderator sees all attendee messages with name + join offset in `/admin/live` unified inbox: PASS
+- Moderator private reply reaches only the target attendee; broadcast reaches every active session (admin treatment): PASS
+- Transport: same SSE pattern as offer ticks (Kong broken — see Phase 5 note); `chat_messages` still published on `supabase_realtime` (migration 0008) for a future swap
+- Attendance rows with join offset + 30s heartbeats + exit offset (feeds Phase 8 analytics): PASS
+- Interim console auth is `ADMIN_KEY` env (documented; real Supabase Auth lands with the tenant spec)
+- Scale fix this slice: one shared Postgres pool per process (per-module pools had exhausted `max_connections`; bumped to 300 and pooled — suite went from 16 failures to 24/24 at ~1 min)
 
 ## Repo map
 
