@@ -1,1 +1,5 @@
 @import "tailwindcss";
+
+/* Workspace packages ship raw TS source; v4's auto-detection skips node_modules. */
+@source "../../packages/room-ui/src";
+@source "../../packages/chat/src";

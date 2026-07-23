@@ -29,6 +29,10 @@ function csv(): string {
 }
 
 test.beforeAll(async () => {
+  // Create the webinar before importing (import/roster 404 on unknown slugs).
+  await fetch(`${baseURL}/api/dev/seed?webinar=demo-chat`, {
+    headers: { "x-seed-token": seedToken },
+  });
   const imp = await fetch(`${baseURL}/api/dev/import-chat?webinar=demo-chat&reset=1`, {
     method: "POST",
     headers: { "x-seed-token": seedToken, "content-type": "text/plain" },
@@ -91,15 +95,22 @@ test("late join shows backlog in order; forward lines arrive on time", async ({ 
   await expect(adminRows).toHaveCount(1);
 });
 
-test("question lines carry the Q badge; admin rows are distinct", async ({ page }) => {
-  // Independent session for independent timing.
+test("line treatments are visually distinct (Q badge, admin, highlighted)", async ({ page }) => {
+  // Independent session; wait for the full script to arrive so the
+  // assertion is free of jitter/navigation timing races.
   const seed = await fetch(`${baseURL}/api/dev/seed?webinar=demo-chat`, {
     headers: { "x-seed-token": seedToken },
   }).then((r) => r.json());
   await page.goto(`/room/${seed.token}`); // materializes the on-demand session
-  await page.waitForTimeout(11_000);
-  await page.reload(); // now at ~11s offset
 
+  // Latest line is the highlighted admin at ~23s (±3s jitter).
+  await expect(page.locator('[data-role="admin"][data-mode="highlighted"]')).toHaveCount(1, {
+    timeout: 35_000,
+  });
   await expect(page.locator('[data-role="attendee"][data-mode="question"]')).toHaveCount(2);
-  await expect(page.locator('[data-role="admin"]')).toHaveCount(0); // admins arrive later (17s/23s)
+  await expect(page.locator('[data-role="admin"][data-mode="answer"]')).toHaveCount(1);
+  // highlighted treatment carries the amber accent border
+  await expect(
+    page.locator('[data-role="admin"][data-mode="highlighted"].border-amber-400'),
+  ).toHaveCount(1);
 });

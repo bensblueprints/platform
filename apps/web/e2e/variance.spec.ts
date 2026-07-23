@@ -27,6 +27,9 @@ async function newTokenPayload(): Promise<any> {
 }
 
 test.beforeAll(async () => {
+  await fetch(`${baseURL}/api/dev/seed?webinar=demo-var`, {
+    headers: { "x-seed-token": seedToken },
+  });
   const roster = await fetch(`${baseURL}/api/dev/seed-roster?webinar=demo-var&reset=1`, {
     headers: { "x-seed-token": seedToken },
   });
