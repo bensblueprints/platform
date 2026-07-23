@@ -11,6 +11,8 @@ export interface GenLine {
   mode: "chat" | "question" | "answer" | "highlighted" | "tip";
   text: string;
   beat: BeatType;
+  /** Human editor override — exempt from grounding/FTC gates (spec §7.7). */
+  hand?: boolean;
 }
 
 export interface ValidationFailure {
@@ -88,7 +90,7 @@ export function validateScript(
 
   // FTC (§12): attendee-role lines must not carry results/earnings claims
   for (const l of lines) {
-    if (l.role !== "attendee") continue;
+    if (l.role !== "attendee" || l.hand) continue;
     if (FTC_PATTERNS.currency.test(l.text) || FTC_PATTERNS.outcome.test(l.text)) {
       failures.push({ rule: "ftc", detail: `attendee claim: "${l.text.slice(0, 60)}"`, beat: l.beat });
     } else if (FTC_PATTERNS.percentage.test(l.text) && FTC_PATTERNS.outcome.test(l.text)) {
@@ -99,6 +101,7 @@ export function validateScript(
   // grounding: no references to things the presenter never said
   const beatByType = new Map(beats.map((b) => [b.type, b]));
   for (const l of lines) {
+    if (l.hand) continue; // human override: not generated, not re-judged
     const beat = beatByType.get(l.beat);
     const transcript = beat?.transcript ?? beats.map((b) => b.transcript).join(" ");
     if (!grounded(l.text, transcript)) {

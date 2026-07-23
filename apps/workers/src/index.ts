@@ -88,7 +88,7 @@ const genWorker = new Worker(
       if (mode === "regen-beat" && beatType) {
         // §7.7: regenerate one beat; other beats' lines (incl. hand edits) untouched
         const draftRows = await genSql<any[]>`
-          select offset_seconds, display_name, role, message, mode
+          select offset_seconds, display_name, role, message, mode, source
           from chat_scripts where webinar_id = ${webinarId} and status = 'draft'
           order by offset_seconds asc
         `;
@@ -101,7 +101,8 @@ const genWorker = new Worker(
           role: r.role,
           mode: r.mode,
           text: r.message,
-          beat: undefined as any, // beat tag unknown for existing rows; filter below uses offsets
+          beat: undefined as any, // beat tag recovered by offset range in the pipeline
+          hand: r.source === 'hand',
         }));
         // pipeline only regenerates `onlyBeatType`; kept lines are the others.
         // Beat membership for existing rows is recovered by offset range after beats load.

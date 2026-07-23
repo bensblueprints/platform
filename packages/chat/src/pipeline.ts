@@ -287,7 +287,17 @@ export async function runGenerationPipeline(
   // 4-5. per-beat generation + merge
   const rng = mulberry32(parseInt(sha256(opts.webinarId + transcriptHash).slice(0, 8), 16));
   const targetBeats = opts.onlyBeatType ? beats.filter((b) => b.type === opts.onlyBeatType) : beats;
-  const keptLines = opts.onlyBeatType ? (opts.existingLines ?? []).filter((l) => l.beat !== opts.onlyBeatType) : [];
+  // exclude existing lines that fall inside the regenerated beat's range —
+  // the caller replaces those; keeping them would double-count density
+  const regenRange = opts.onlyBeatType
+    ? beats.find((b) => b.type === opts.onlyBeatType)
+    : undefined;
+  const keptLines = opts.onlyBeatType
+    ? (opts.existingLines ?? []).filter((l) => {
+        if (!regenRange) return true;
+        return l.offsetSeconds < regenRange.start || l.offsetSeconds > regenRange.end;
+      })
+    : [];
 
   const generated: GenLine[] = [...keptLines];
   const personaUsage: PersonaUsage = { lastUsed: new Map(), counts: new Map() };
