@@ -5,5 +5,14 @@
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
-  "scripts": { "test": "vitest run" }
+  "scripts": {
+    "test": "vitest run",
+    "migrate": "node scripts/migrate.mjs"
+  },
+  "dependencies": {
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
+  }
 }

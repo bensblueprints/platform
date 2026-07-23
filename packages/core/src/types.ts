@@ -1,0 +1,63 @@
+export interface WebinarRow {
+  id: string;
+  tenant_id: string | null;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  broadcast_mode: "evergreen" | "live" | "hybrid";
+  video_url: string | null;
+  video_r2_key: string | null;
+  duration_seconds: number;
+  thumbnail_url: string | null;
+  schedule_mode: "jit" | "recurring" | "ondemand";
+  jit_interval_minutes: number | null;
+  jit_lead_minutes: number | null;
+  recurring_days: number[] | null;
+  recurring_times: string[] | null;
+  timezone: string | null;
+  show_attendee_count: boolean | null;
+  allow_real_chat: boolean | null;
+  chat_variance_pct: number | null;
+  chat_jitter_seconds: number | null;
+  replay_enabled: boolean | null;
+  replay_window_hours: number | null;
+  source_session_id: string | null;
+  created_at: Date;
+}
+
+export interface SessionRow {
+  id: string;
+  webinar_id: string;
+  starts_at: Date;
+  seed: number;
+  status: string | null;
+  created_at: Date;
+}
+
+export interface RegistrantRow {
+  id: string;
+  webinar_id: string;
+  session_id: string | null;
+  email: string;
+  first_name: string | null;
+  phone: string | null;
+  timezone: string | null;
+  utm: unknown;
+  access_token: string;
+  registered_at: Date;
+}
+
+export interface RoomPayload {
+  webinar: {
+    title: string;
+    durationSeconds: number;
+    videoUrl: string | null;
+    showAttendeeCount: boolean;
+    allowRealChat: boolean;
+  };
+  session: { id: string; startsAtMs: number; seed: number };
+  serverNowMs: number;
+  registrant: { firstName: string | null };
+  over: boolean;
+  redirectUrl?: string;
+}
