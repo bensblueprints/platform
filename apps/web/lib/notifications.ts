@@ -37,22 +37,28 @@ export async function scheduleRegistrationNotifications(opts: {
     nowMs: Date.now(),
   });
 
+  let scheduled = 0;
   for (const j of jobs) {
-    await q.add(
-      j.kind,
-      {
-        registrantId: opts.registrantId,
-        email: opts.email,
-        firstName: opts.firstName,
-        webinarTitle: opts.webinarTitle,
-        startsAtMs: opts.startsAtMs,
-        joinUrl: opts.joinUrl,
-      },
-      {
-        delay: Math.max(0, j.runAtMs - Date.now()),
-        jobId: `${opts.registrantId}:${j.kind}`,
-      },
-    );
+    try {
+      await q.add(
+        j.kind,
+        {
+          registrantId: opts.registrantId,
+          email: opts.email,
+          firstName: opts.firstName,
+          webinarTitle: opts.webinarTitle,
+          startsAtMs: opts.startsAtMs,
+          joinUrl: opts.joinUrl,
+        },
+        {
+          delay: Math.max(0, j.runAtMs - Date.now()),
+          jobId: `${opts.registrantId}|${j.kind}`, // BullMQ forbids ':' in job ids
+        },
+      );
+      scheduled++;
+    } catch (err) {
+      console.error(`[notify] failed to enqueue ${j.kind}:`, (err as Error).message);
+    }
   }
-  return { scheduled: jobs.length };
+  return { scheduled };
 }

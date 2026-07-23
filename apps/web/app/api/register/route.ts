@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     startsAtMs,
     durationSeconds: w.duration_seconds,
     joinUrl: `/room/${token}`,
-  });
+  }).catch((err) => console.error("[notify] scheduling failed:", err));
 
   return Response.json({
     token,
