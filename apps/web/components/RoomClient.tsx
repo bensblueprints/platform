@@ -59,6 +59,42 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
     });
   }, []);
 
+  // attendance heartbeat (spec §5 attendances)
+  useEffect(() => {
+    let attendanceId: string | null = null;
+    void fetch(`/api/attendance/${token}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ offsetSeconds: offset }),
+    })
+      .then((r) => r.json())
+      .then((j) => (attendanceId = j.attendanceId ?? null))
+      .catch(() => {});
+    const beat = setInterval(() => {
+      if (!attendanceId) return;
+      void fetch(`/api/attendance/${token}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ attendanceId }),
+      }).catch(() => {});
+    }, 30_000);
+    const onUnload = () => {
+      if (!attendanceId) return;
+      void fetch(`/api/attendance/${token}`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ attendanceId, exitOffsetSeconds: offsetSeconds(payload.session.startsAtMs, clock.nowMs()) }),
+        keepalive: true,
+      }).catch(() => {});
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => {
+      clearInterval(beat);
+      window.removeEventListener("beforeunload", onUnload);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   async function join() {
     const v = videoRef.current;
     if (!v) return;
@@ -132,7 +168,12 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
             </p>
           )}
         </div>
-        <ChatRail lines={payload.chat} offsetSeconds={offset} />
+        <ChatRail
+          lines={payload.chat}
+          offsetSeconds={offset}
+          startsAtMs={payload.session.startsAtMs}
+          realChat={{ token, allowRealChat: payload.webinar.allowRealChat }}
+        />
       </div>
     </main>
   );
