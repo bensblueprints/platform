@@ -15,6 +15,7 @@ Evergreen mode plays a pre-recorded video as a scheduled "live" session on a
 **Slice 6 (Phase 6 registration + scheduling): shipped and verified.**
 **Slice 7 (Phase 7 real chat + moderator console): shipped and verified.**
 **Slice 8 (Phase 8 notifications + analytics): shipped and verified.**
+**Slice 9 (Phase 9 chat script generator): shipped and verified (mock inference; real-API acceptance pending keys).**
 
 - Live app: https://webinar-platform.212.28.184.24.sslip.io
 - Repo: https://github.com/bensblueprints/platform (public for now — no secrets here)
@@ -78,6 +79,15 @@ Phase 7 acceptance results (spec §15):
 - Attendance rows with join offset + 30s heartbeats + exit offset (feeds Phase 8 analytics): PASS
 - Interim console auth is `ADMIN_KEY` env (documented; real Supabase Auth lands with the tenant spec)
 - Scale fix this slice: one shared Postgres pool per process (per-module pools had exhausted `max_connections`; bumped to 300 and pooled — suite went from 16 failures to 24/24 at ~1 min)
+
+Phase 9 results (spec §15 — the differentiating module):
+
+- 7-stage BullMQ pipeline (transcribe → beats → roster → per-beat generation → merge → validate → emit): PASS. Transcript cached against video hash, beats against transcript hash (§7.8); per-beat regen touches one beat only
+- Validation gates (§7.5): persona spacing 45s + 8% cap (audience personas), question→answer pairing ≤90s enforced globally, density per §7.4 table ±15% (±2 small-N floor), FTC hard block on attendee claims, transcript grounding via distinctive-anchor token overlap (documented stand-in for embeddings)
+- Personas (§7.3): 20–40 with archetype mix, typing styles (case/emoji/typo-safe typos), arrival arcs incl. true late arrivers; global assignment spreads usage by construction
+- Draft-first workflow (§7.7): generation lands as draft; editor at `/admin/scripts/[slug]` (beat bands, inline edit/retime/reassign, density heatmap, diff vs live, publish swap); hand edits exempt from re-validation and survive per-beat regen; CSV round-trips through the EverWebinar parser
+- Inference: OpenAI-compatible adapter (baseURL-selectable) + deterministic mock; e2e verified on mock — **real-API acceptance (the §15 45-min-video bar) runs when `INFERENCE_BASE_URL`/`INFERENCE_API_KEY` land**
+- e2e: 33/33 Playwright across all phases on production
 
 Phase 8 results (spec §15):
 
