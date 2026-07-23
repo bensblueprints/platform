@@ -86,7 +86,8 @@ test("recurring registration assigns the next session and shows it localized", a
   const confirmed = await page.getByTestId("confirmed-time").innerText();
   expect(confirmed).toMatch(/\d/);
   // timezone abbreviation is rendered by the server from the registrant's zone
-  expect(confirmed).toMatch(/(UTC|[A-Z]{2,5})$/);
+  // (IANA short forms include "UTC", "MDT", and "GMT+8"-style offsets)
+  expect(confirmed).toMatch(/(UTC|GMT|[A-Z]{2,5})([+-]\d{1,2}(:\d{2})?)?$/);
 });
 
 test("ondemand: register and join end-to-end", async ({ page }) => {

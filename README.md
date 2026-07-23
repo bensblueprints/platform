@@ -12,6 +12,7 @@ Evergreen mode plays a pre-recorded video as a scheduled "live" session on a
 **Slice 3 (Phase 3 per-session variance + name roster): shipped and verified.**
 **Slice 4 (Phase 4 simulated attendee counter): shipped and verified.**
 **Slice 5 (Phase 5 offer + payments): shipped; live Stripe purchase pending API key.**
+**Slice 6 (Phase 6 registration + scheduling): shipped and verified.**
 
 - Live app: https://webinar-platform.212.28.184.24.sslip.io
 - Repo: https://github.com/bensblueprints/platform (public for now — no secrets here)
@@ -56,6 +57,15 @@ Phase 5 acceptance results (spec §15):
 - Price ladder computed server-side; `units_sold` increment → price rises by increment and pushes live to a second open browser: PASS (SQL-simulated purchase over SSE)
 - **Transport note:** spec names Supabase Realtime for ticks. This box's Kong gateway redirects every Supabase API route (incl. `/realtime/v1/websocket`) to `/login` (verified 2026-07-23), so browser→Realtime is not viable; ticks ship as SSE from our own app (`/api/offers/[id]/stream`) delivering the identical visible behavior. Swap back if Kong is fixed (migration 0006 already publishes `offers`).
 - Stripe Checkout Session created at click time with server-computed price; webhook is the only `units_sold` increment (idempotent via `stripe_session_id`): code shipped, **live test-purchase pending `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`**
+
+Phase 6 acceptance results (spec §15):
+
+- JIT page shows a session starting within the lead window (`ceil(now / interval) + lead`): PASS (unit boundaries + e2e)
+- Registering creates exactly one session row (unique `(webinar_id, starts_at)` index, `on conflict do nothing`; second registration reuses the slot): PASS
+- Recurring: BullMQ job on `webinar-workers` materializes 14 days ahead (also callable via dev endpoint); idempotent on re-run; DST-correct across America/Denver spring-forward (unit): PASS
+- Registration page `/w/[slug]`, confirmation with localized time + zone abbreviation, `.ics` download, UTM capture, on-demand register→join end-to-end: PASS
+- Cleanup: workers deleted 38 dead scheduled sessions on first run (§16.7)
+- Infra note: `webinar-redis` (BullMQ) + `webinar-workers` app now run on Coolify; do not trigger two app builds at once on this box (concurrent builds OOM'd once — run them serially)
 
 ## Repo map
 
