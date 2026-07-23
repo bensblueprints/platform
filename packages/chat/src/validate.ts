@@ -30,9 +30,12 @@ export function validateScript(
 ): { ok: boolean; failures: ValidationFailure[] } {
   const failures: ValidationFailure[] = [];
 
-  // persona spacing: no two lines from the same persona within 45s
+  // persona spacing: no two lines from the same audience persona within
+  // 45s. Admin-role lines are exempt — the host/moderator answers rapidly
+  // by nature, and §7.3's personas are the audience characters.
   const byPersona = new Map<string, number[]>();
   for (const l of lines) {
+    if (l.role === "admin") continue;
     const arr = byPersona.get(l.persona) ?? [];
     arr.push(l.offsetSeconds);
     byPersona.set(l.persona, arr);
@@ -47,11 +50,13 @@ export function validateScript(
     }
   }
 
-  // persona cap: 8% of total lines. Only meaningful at script scale —
+  // persona cap: 8% of total lines, audience personas only (§7.3 personas
+  // are the audience characters). Only meaningful at script scale —
   // below 25 lines any repeat persona trivially exceeds 8%.
   if (lines.length >= 25) {
-    for (const p of personaCapViolations(lines, 0.08)) {
-      failures.push({ rule: "persona_cap", detail: `${p} exceeds 8% of lines` });
+    const audience = lines.filter((l) => l.role !== "admin");
+    for (const p of personaCapViolations(audience, 0.08)) {
+      failures.push({ rule: "persona_cap", detail: `${p} exceeds 8% of audience lines` });
     }
   }
 
