@@ -91,9 +91,10 @@ test("countdown persists across reload (per-attendee, localStorage)", async ({ p
     const [m, sec] = s.split(":").map(Number);
     return m * 60 + sec;
   };
-  // continuous, not reset: t2 is a few seconds BELOW t1, nowhere near 10:00
-  expect(toSec(t2)).toBeLessThan(toSec(t1));
-  expect(toSec(t2)).toBeLessThan(600 - 60);
+  // continuous, not reset: t2 is a few seconds BELOW t1 with a bounded gap
+  const gap = toSec(t1) - toSec(t2);
+  expect(gap).toBeGreaterThan(0);
+  expect(gap).toBeLessThan(20);
 });
 
 test("simulated purchase ticks the price live in two open browsers", async ({ page, browser }) => {
