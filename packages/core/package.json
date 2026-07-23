@@ -12,7 +12,8 @@
   "dependencies": {
     "postgres": "^3.4.9",
     "@platform/chat": "*",
-    "@platform/offers": "*"
+    "@platform/offers": "*",
+    "@platform/timeline": "*"
   },
   "devDependencies": {
     "vitest": "^4.1.10"

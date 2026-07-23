@@ -1,0 +1,84 @@
+import { createDb, materializeRecurringSessions } from "@platform/core";
+import { nextJitSlotMs } from "@platform/timeline";
+
+export const dynamic = "force-dynamic";
+
+const sql = createDb();
+
+/**
+ * Public registration (spec §11): creates the registrant with a random
+ * access token, assigns a session per schedule mode (§10).
+ */
+export async function POST(req: Request) {
+  const body = (await req.json().catch(() => ({}))) as {
+    slug?: string;
+    email?: string;
+    firstName?: string;
+    phone?: string;
+    timezone?: string;
+    utm?: Record<string, string>;
+  };
+  const slug = body.slug ?? "";
+  const email = (body.email ?? "").trim().toLowerCase();
+  if (!slug || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return Response.json({ error: "bad_request" }, { status: 400 });
+  }
+
+  const webinars = await sql<any[]>`
+    select * from webinars where slug = ${slug} limit 1
+  `;
+  const w = webinars[0];
+  if (!w) return Response.json({ error: "not_found" }, { status: 404 });
+
+  let timezone = body.timezone ?? "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+  } catch {
+    timezone = "UTC";
+  }
+
+  let sessionId: string | null = null;
+
+  if (w.schedule_mode === "jit") {
+    const slotMs = nextJitSlotMs(Date.now(), w.jit_interval_minutes ?? 15, w.jit_lead_minutes ?? 5);
+    await sql`
+      insert into sessions (webinar_id, starts_at, seed)
+      values (${w.id}, ${new Date(slotMs).toISOString()}, floor(random() * 2147483647))
+      on conflict (webinar_id, starts_at) do nothing
+    `;
+    const rows = await sql<{ id: string }[]>`
+      select id from sessions where webinar_id = ${w.id} and starts_at = ${new Date(slotMs).toISOString()} limit 1
+    `;
+    sessionId = rows[0]?.id ?? null;
+  } else if (w.schedule_mode === "recurring") {
+    let rows = await sql<{ id: string }[]>`
+      select id from sessions where webinar_id = ${w.id} and starts_at >= now()
+      order by starts_at asc limit 1
+    `;
+    if (rows.length === 0) {
+      await materializeRecurringSessions(sql);
+      rows = await sql<{ id: string }[]>`
+        select id from sessions where webinar_id = ${w.id} and starts_at >= now()
+        order by starts_at asc limit 1
+      `;
+    }
+    sessionId = rows[0]?.id ?? null;
+  }
+  // ondemand: session is created lazily on first room hit (existing behavior)
+
+  const token = crypto.randomUUID();
+  await sql`
+    insert into registrants (webinar_id, session_id, email, first_name, phone, timezone, utm, access_token)
+    values (
+      ${w.id}, ${sessionId}, ${email}, ${body.firstName ?? null}, ${body.phone ?? null},
+      ${timezone}, ${body.utm ? JSON.stringify(body.utm) : null}, ${token}
+    )
+  `;
+
+  const origin = new URL(req.url).origin;
+  return Response.json({
+    token,
+    joinUrl: `${origin}/room/${token}`,
+    confirmedUrl: `${origin}/w/${slug}/confirmed?token=${token}`,
+  });
+}
