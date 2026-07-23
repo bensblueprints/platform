@@ -4,6 +4,8 @@
  * are separate endpoints on the same interface.
  */
 
+import { contentWords } from "./ground";
+
 export interface TranscriptSegment {
   start: number; // seconds
   end: number;
@@ -92,11 +94,7 @@ export function createMockClient(): InferenceClient {
       // mine mentions from the transcript slice in the prompt (mirrors the
       // real LLM being grounded by instruction); fall back to global terms
       const slice = last.match(/"""([\s\S]*?)"""/)?.[1] ?? last;
-      const mined = (slice.toLowerCase().match(/[a-z0-9%]{5,}/g) ?? []).filter(
-        (w, i, arr) =>
-          arr.indexOf(w) === i &&
-          !["welcome", "everyone", "thanks", "joining", "session", "today", "covered", "templates", "using", "their", "there", "which", "while", "available", "exactly", "would", "could", "should"].includes(w),
-      );
+      const mined = [...contentWords(slice)].filter((w) => w.length >= 5);
       const mentions = mined.length > 0 ? mined : ["diagnose", "framework", "replay"];
       const beatType = last.match(/Beat type: (\w+)/)?.[1] ?? "teaching";
       const requested = Number(last.match(/Write exactly (\d+) lines/i)?.[1]);

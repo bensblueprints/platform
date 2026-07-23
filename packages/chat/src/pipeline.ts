@@ -5,6 +5,7 @@ import { targetLineCount, burstOffsets, DENSITY } from "./density";
 import { generateRoster, type Persona } from "./personas";
 import { mergeLines } from "./merge";
 import { validateScript, type GenLine, type ValidationFailure } from "./validate";
+import { contentWords } from "./ground";
 
 /** Structural DB handle so @platform/chat never depends on @platform/core. */
 export type SqlLike = <T = any>(strings: TemplateStringsArray, ...values: any[]) => Promise<T>;
@@ -40,7 +41,7 @@ function heuristicBeats(segments: { start: number; end: number; text: string }[]
   }));
 }
 
-function applyStyle(text: string, persona: Persona, rng: () => number): string {
+function applyStyle(text: string, persona: Persona, rng: () => number, anchors?: Set<string>): string {
   let out = text;
   if (persona.style.caps === "lower") out = out.toLowerCase();
   if (persona.style.caps === "shout") {
@@ -50,9 +51,16 @@ function applyStyle(text: string, persona: Persona, rng: () => number): string {
   }
   if (persona.style.typos && rng() < 0.3) {
     const words = out.split(" ");
-    const i = words.findIndex((w) => w.length > 4);
-    if (i >= 0) {
-      const w = words[i];
+    // typo only small non-anchor words — mangling an anchor ("diagonse")
+    // both reads wrong and breaks the grounding gate
+    const candidates = words
+      .map((w, i) => ({ w, i }))
+      .filter(({ w }) => {
+        const clean = w.toLowerCase().replace(/[^a-z]/g, "");
+        return clean.length >= 4 && clean.length <= 5 && !(anchors?.has(clean) ?? false);
+      });
+    if (candidates.length > 0) {
+      const { w, i } = candidates[Math.floor(rng() * candidates.length)];
       const j = 1 + Math.floor(rng() * (w.length - 3));
       words[i] = w.slice(0, j) + w[j + 1] + w[j] + w.slice(j + 2);
       out = words.join(" ");
@@ -115,6 +123,7 @@ async function generateBeatLines(
 
   const parsed = parseGeneratedLines(raw);
   const offsets = burstOffsets(rng, parsed.length, beat.start + 3, Math.max(beat.start + 10, beat.end - 3));
+  const anchors = contentWords(beat.transcript);
 
   // Global persona assignment (§7.3/§7.5 by construction): spread usage,
   // never the same persona within 45s anywhere in the script.
@@ -134,7 +143,7 @@ async function generateBeatLines(
       persona: persona.name,
       role: "attendee",
       mode: l.mode === "question" ? "question" : "chat",
-      text: applyStyle(l.text, persona, rng),
+      text: applyStyle(l.text, persona, rng, anchors),
       beat: beat.type,
     });
   }

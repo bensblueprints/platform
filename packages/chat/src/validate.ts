@@ -73,8 +73,11 @@ export function validateScript(
   // density: total lines within ±15% of the summed targets
   if (!opts?.skipDensity && beats.length > 0) {
     const target = beats.reduce((sum, b) => sum + targetLineCount(b), 0);
-    if (!densityBandOk(lines.length, target)) {
-      failures.push({ rule: "density", detail: `${lines.length} lines vs target ${target} (±15%)` });
+    // admin answers are added mechanically by question pairing; the density
+    // target describes audience/organic volume (§7.4)
+    const counted = lines.filter((l) => !(l.role === "admin" && l.mode === "answer")).length;
+    if (!densityBandOk(counted, target)) {
+      failures.push({ rule: "density", detail: `${counted} lines vs target ${target} (±15%)` });
     }
   }
 
