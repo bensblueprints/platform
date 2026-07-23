@@ -24,13 +24,16 @@ export async function GET(req: Request) {
   const webinar = webinars[0];
   if (!webinar) return Response.json({ error: "unknown_webinar" }, { status: 404 });
 
-  // update-first, insert-if-missing: idempotent across repeated seeds
+  // update-first, insert-if-missing: idempotent across repeated seeds.
+  // Dev semantics: re-seeding resets the ladder and its event log.
+  await sql`delete from offer_events where offer_id in (select id from offers where webinar_id = ${webinar.id} and name = 'Demo Offer')`;
   const updated = await sql`
     update offers set
       start_offset_seconds = ${start},
       urgency_enabled = true, urgency_seconds = 600,
       scarcity_enabled = true, inventory_total = 25,
-      price_start_cents = 10000, price_increment_cents = 500, price_cap_cents = 99700
+      price_start_cents = 10000, price_increment_cents = 500, price_cap_cents = 99700,
+      units_sold = 0
     where webinar_id = ${webinar.id} and name = 'Demo Offer'
     returning id
   `;
