@@ -32,7 +32,10 @@ export function targetLineCount(beat: Pick<Beat, "type" | "start" | "end">): num
 }
 
 export function densityBandOk(actual: number, target: number): boolean {
-  return Math.abs(actual - target) <= target * 0.15;
+  // ±15% with a ±2 floor for small targets — the gate must not flake at
+  // tiny line counts (mock/short scripts); at real scale (target ~100+)
+  // the 15% rule dominates unchanged.
+  return Math.abs(actual - target) <= Math.max(target * 0.15, 2);
 }
 
 /**

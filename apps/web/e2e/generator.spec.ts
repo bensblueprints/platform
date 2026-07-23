@@ -33,6 +33,13 @@ test.beforeAll(async () => {
     r.json(),
   );
   webinarId = list.webinars.find((w: any) => w.slug === "demo").id;
+
+  // reset generator state so the daily cap (§7.8) and drafts are deterministic
+  const postgres = (await import("postgres")).default;
+  const sql = postgres(process.env.DATABASE_URL!);
+  await sql`delete from generation_jobs where webinar_id = ${webinarId}`;
+  await sql`delete from chat_scripts where webinar_id = ${webinarId} and status = 'draft'`;
+  await sql.end();
 });
 
 test("generation job completes and lands a validated draft", async () => {

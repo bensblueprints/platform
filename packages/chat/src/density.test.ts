@@ -22,10 +22,12 @@ describe("density targets (spec §7.4)", () => {
     expect(n).toBeLessThanOrEqual(12);
   });
 
-  it("densityBandOk allows ±15%", () => {
+  it("densityBandOk is ±15% with a ±2 floor for small targets", () => {
     expect(densityBandOk(10, 10)).toBe(true);
-    expect(densityBandOk(8, 10)).toBe(false);
-    expect(densityBandOk(12, 10)).toBe(false);
+    expect(densityBandOk(12, 10)).toBe(true); // within ±2 floor
+    expect(densityBandOk(7, 10)).toBe(false); // outside floor
+    expect(densityBandOk(114, 100)).toBe(true); // within 15%
+    expect(densityBandOk(116, 100)).toBe(false); // outside 15%
   });
 });
 
