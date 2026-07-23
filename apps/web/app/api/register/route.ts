@@ -75,10 +75,9 @@ export async function POST(req: Request) {
     )
   `;
 
-  const origin = new URL(req.url).origin;
   return Response.json({
     token,
-    joinUrl: `${origin}/room/${token}`,
-    confirmedUrl: `${origin}/w/${slug}/confirmed?token=${token}`,
+    joinUrl: `/room/${token}`,
+    confirmedUrl: `/w/${slug}/confirmed?token=${token}`,
   });
 }

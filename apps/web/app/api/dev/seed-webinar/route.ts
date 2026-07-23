@@ -28,6 +28,13 @@ export async function GET(req: Request) {
   const days = q.get("days") ? q.get("days")!.split(",").map(Number) : null;
   const times = q.get("times") ? q.get("times")!.split(",") : null;
 
+  const existing = await sql<{ id: string }[]>`
+    select id from webinars where slug = ${slug} limit 1
+  `;
+  if (q.get("reset") === "1" && existing[0]) {
+    await sql`delete from sessions where webinar_id = ${existing[0].id}`;
+  }
+
   await sql`
     insert into webinars (
       slug, title, broadcast_mode, schedule_mode, duration_seconds, video_url,

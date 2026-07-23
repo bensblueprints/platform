@@ -23,6 +23,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   if (!r) return new Response("not found", { status: 404 });
 
   const minutes = Math.round(r.duration_seconds / 60);
+  const host = _req.headers.get("x-forwarded-host") ?? new URL(_req.url).host;
+  const proto = _req.headers.get("x-forwarded-proto") ?? "https";
   const body = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -33,7 +35,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
     `DTSTART:${icsDate(new Date(r.starts_at))}`,
     `DURATION:PT${Math.floor(minutes / 60)}H${minutes % 60}M`,
     `SUMMARY:${r.title.replace(/[,;\\]/g, " ")}`,
-    `URL:${new URL(_req.url).origin}/room/${token}`,
+    `URL:${proto}://${host}/room/${token}`,
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");
