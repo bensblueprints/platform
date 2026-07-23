@@ -40,7 +40,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     offset,
   );
   if (window !== "active") {
-    return Response.json({ error: "offer_not_active" }, { status: 409 });
+    return Response.json({ error: "offer_not_active", window, offset, hasStartsAt: offer.starts_at != null }, { status: 409 });
   }
 
   const amountCents = currentPriceCents(

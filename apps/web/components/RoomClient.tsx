@@ -38,7 +38,7 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
 
   // Live price ticks (spec §9): a purchase lands → every open room recomputes.
   useEffect(() => {
-    return subscribeOfferTicks((offerId, unitsSold) => {
+    return subscribeOfferTicks(offers.map((o) => o.id), (offerId, unitsSold) => {
       setOffers((prev) =>
         prev.map((o) => {
           if (o.id !== offerId) return o;
