@@ -1,0 +1,11 @@
+{
+  "name": "platform",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run dev -w @platform/web",
+    "build": "npm run build -w @platform/web",
+    "test": "npm test --workspaces --if-present"
+  },
+  "engines": { "node": ">=20" }
+}
