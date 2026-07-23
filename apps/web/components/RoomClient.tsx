@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RoomPayload } from "@platform/core";
 import { offsetSeconds } from "@platform/timeline";
-import { ChatRail } from "@platform/room-ui";
+import { ChatRail, StatusBar } from "@platform/room-ui";
 import { clock } from "../lib/clock";
 import Player from "./Player";
 
@@ -42,10 +42,14 @@ export default function RoomClient({ payload }: { payload: RoomPayload }) {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-4 p-4">
-      <header className="flex items-center gap-3">
-        <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" aria-label="Live" />
-        <h1 className="text-lg font-medium">{payload.webinar.title}</h1>
-      </header>
+      <StatusBar
+        title={payload.webinar.title}
+        showCount={payload.webinar.showAttendeeCount}
+        offsetSeconds={offset}
+        durationSeconds={payload.webinar.durationSeconds}
+        curve={payload.webinar.curve}
+        seed={payload.session.seed}
+      />
       <div className="grid flex-1 gap-4 md:grid-cols-[1fr_320px]">
         <div className="flex flex-col gap-3">
           <Player

@@ -1,12 +1,14 @@
 import type { Sql } from "./db";
 import { applySessionVariance, resolveNameTokens } from "@platform/chat";
-import type {
-  ChatLine,
-  ChatScriptRow,
-  RegistrantRow,
-  RoomPayload,
-  SessionRow,
-  WebinarRow,
+import {
+  DEFAULT_CURVE_CONFIG,
+  type ChatLine,
+  type ChatScriptRow,
+  type CurveConfig,
+  type RegistrantRow,
+  type RoomPayload,
+  type SessionRow,
+  type WebinarRow,
 } from "./types";
 
 export function toChatLine(row: ChatScriptRow): ChatLine {
@@ -26,6 +28,7 @@ export function toRoomPayload(
   r: Pick<RegistrantRow, "first_name">,
   nowMs: number,
   chat: ChatLine[] = [],
+  curve: CurveConfig = DEFAULT_CURVE_CONFIG,
 ): RoomPayload {
   const startsAtMs = s.starts_at.getTime();
   return {
@@ -35,6 +38,7 @@ export function toRoomPayload(
       videoUrl: w.video_url,
       showAttendeeCount: w.show_attendee_count ?? true,
       allowRealChat: w.allow_real_chat ?? true,
+      curve,
     },
     session: { id: s.id, startsAtMs, seed: s.seed },
     serverNowMs: nowMs,
@@ -115,5 +119,27 @@ export async function getRoomPayload(sql: Sql, token: string): Promise<RoomPaylo
     session.seed,
   );
 
-  return toRoomPayload(webinar, session, reg, Date.now(), chat);
+  const curveRows = await sql<
+    {
+      peak_count: number;
+      ramp_minutes: number;
+      plateau_pct: string;
+      end_pct: string;
+      jitter_pct: string;
+    }[]
+  >`
+    select peak_count, ramp_minutes, plateau_pct, end_pct, jitter_pct
+    from attendance_curves where webinar_id = ${webinar.id} limit 1
+  `;
+  const curve: CurveConfig = curveRows[0]
+    ? {
+        peakCount: curveRows[0].peak_count,
+        rampMinutes: curveRows[0].ramp_minutes,
+        plateauPct: Number(curveRows[0].plateau_pct),
+        endPct: Number(curveRows[0].end_pct),
+        jitterPct: Number(curveRows[0].jitter_pct),
+      }
+    : DEFAULT_CURVE_CONFIG;
+
+  return toRoomPayload(webinar, session, reg, Date.now(), chat, curve);
 }

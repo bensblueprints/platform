@@ -69,6 +69,22 @@ export interface ChatLine {
   sortOrder: number | null;
 }
 
+export interface CurveConfig {
+  peakCount: number;
+  rampMinutes: number;
+  plateauPct: number;
+  endPct: number;
+  jitterPct: number;
+}
+
+export const DEFAULT_CURVE_CONFIG: CurveConfig = {
+  peakCount: 240,
+  rampMinutes: 8,
+  plateauPct: 0.55,
+  endPct: 0.35,
+  jitterPct: 0.03,
+}
+
 export interface RoomPayload {
   webinar: {
     title: string;
@@ -76,6 +92,7 @@ export interface RoomPayload {
     videoUrl: string | null;
     showAttendeeCount: boolean;
     allowRealChat: boolean;
+    curve: CurveConfig;
   };
   session: { id: string; startsAtMs: number; seed: number };
   serverNowMs: number;
