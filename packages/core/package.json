@@ -10,7 +10,8 @@
     "migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
-    "postgres": "^3.4.9"
+    "postgres": "^3.4.9",
+    "@platform/chat": "*"
   },
   "devDependencies": {
     "vitest": "^4.1.10"

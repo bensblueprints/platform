@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toRoomPayload } from "./room";
+import { toChatLine, toRoomPayload } from "./room";
 
 const w = {
   id: "w1",
@@ -46,26 +46,37 @@ describe("toRoomPayload", () => {
     expect(toRoomPayload(w, s, r, 1_000_500).chat).toEqual([]);
   });
 
-  it("maps chat script rows into the payload contract", () => {
-    const p = toRoomPayload(w, s, r, 1_000_500, [
-      {
+  it("maps chat script rows via toChatLine", () => {
+    expect(
+      toChatLine({
         offset_seconds: 134,
         display_name: "Marcus T.",
         role: "attendee",
         message: "Joining from Denver",
         mode: "chat",
         sort_order: 0,
-      },
-    ]);
-    expect(p.chat).toEqual([
+      }),
+    ).toEqual({
+      offsetSeconds: 134,
+      displayName: "Marcus T.",
+      role: "attendee",
+      message: "Joining from Denver",
+      mode: "chat",
+      sortOrder: 0,
+    });
+  });
+
+  it("passes chat lines through to the payload", () => {
+    const chat = [
       {
         offsetSeconds: 134,
         displayName: "Marcus T.",
-        role: "attendee",
+        role: "attendee" as const,
         message: "Joining from Denver",
-        mode: "chat",
+        mode: "chat" as const,
         sortOrder: 0,
       },
-    ]);
+    ];
+    expect(toRoomPayload(w, s, r, 1_000_500, chat).chat).toEqual(chat);
   });
 });

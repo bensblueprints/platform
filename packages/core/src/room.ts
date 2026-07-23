@@ -1,4 +1,5 @@
 import type { Sql } from "./db";
+import { applySessionVariance, resolveNameTokens } from "@platform/chat";
 import type {
   ChatLine,
   ChatScriptRow,
@@ -24,7 +25,7 @@ export function toRoomPayload(
   s: Pick<SessionRow, "id" | "starts_at" | "seed">,
   r: Pick<RegistrantRow, "first_name">,
   nowMs: number,
-  chat: ChatScriptRow[] = [],
+  chat: ChatLine[] = [],
 ): RoomPayload {
   const startsAtMs = s.starts_at.getTime();
   return {
@@ -39,7 +40,7 @@ export function toRoomPayload(
     serverNowMs: nowMs,
     registrant: { firstName: r.first_name },
     over: nowMs - startsAtMs >= w.duration_seconds * 1000,
-    chat: chat.map(toChatLine),
+    chat,
   };
 }
 
@@ -97,5 +98,22 @@ export async function getRoomPayload(sql: Sql, token: string): Promise<RoomPaylo
     order by offset_seconds asc, sort_order asc
   `;
 
-  return toRoomPayload(webinar, session, reg, Date.now(), chatRows);
+  const rosterRows = await sql<{ display_name: string }[]>`
+    select display_name from name_roster where webinar_id = ${webinar.id}
+  `;
+
+  // Phase 3: deterministic per-session transform (spec §6.2, §6.3) —
+  // drop + jitter, then {{name}} substitution over the surviving lines.
+  const varied = applySessionVariance(chatRows.map(toChatLine), {
+    seed: session.seed,
+    variancePct: webinar.chat_variance_pct == null ? null : Number(webinar.chat_variance_pct),
+    jitterSeconds: webinar.chat_jitter_seconds,
+  });
+  const chat = resolveNameTokens(
+    varied,
+    rosterRows.map((r) => r.display_name),
+    session.seed,
+  );
+
+  return toRoomPayload(webinar, session, reg, Date.now(), chat);
 }
