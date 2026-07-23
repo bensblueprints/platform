@@ -10,3 +10,4 @@ export * from "./personas";
 export * from "./merge";
 export * from "./ground";
 export * from "./validate";
+export * from "./pipeline";

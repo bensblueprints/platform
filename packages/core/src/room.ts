@@ -133,7 +133,7 @@ export async function getRoomPayload(sql: Sql, token: string): Promise<RoomPaylo
   const chatRows = await sql<ChatScriptRow[]>`
     select offset_seconds, display_name, role, message, mode, sort_order
     from chat_scripts
-    where webinar_id = ${webinar.id}
+    where webinar_id = ${webinar.id} and status = 'live'
     order by offset_seconds asc, sort_order asc
   `;
 
