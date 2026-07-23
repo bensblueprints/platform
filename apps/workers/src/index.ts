@@ -143,7 +143,7 @@ const genWorker = new Worker(
         }
         await genSql`
           update generation_jobs set status = 'done',
-            usage = ${JSON.stringify({ ...result.usage, regenBeat: beatType })}, updated_at = now()
+            usage = ${JSON.stringify({ ...result.usage, regenBeat: beatType })}::jsonb, updated_at = now()
           where id = ${jobId}
         `;
         console.log(`[generate] ${jobId} regen-beat ${beatType}: ${newLines.length} lines`);
@@ -183,7 +183,7 @@ const genWorker = new Worker(
       }
       await genSql`
         update generation_jobs set status = 'done',
-          usage = ${JSON.stringify({ ...result.usage, beats: result.beats })}, updated_at = now()
+          usage = ${JSON.stringify({ ...result.usage, beats: result.beats })}::jsonb, updated_at = now()
         where id = ${jobId}
       `;
       console.log(`[generate] ${jobId} done: ${result.lines.length} lines, ${result.beats.length} beats`);
