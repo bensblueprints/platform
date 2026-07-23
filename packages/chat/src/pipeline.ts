@@ -148,34 +148,42 @@ async function generateBeatLines(
     });
   }
 
-  // §7.4 pairing: every question gets an admin answer 20-90s later.
-  // Templates vary (merge dedupes identical text) and stay atmospheric
-  // (link/replay/worksheet anchors) so grounding passes.
-  const ANSWER_TEMPLATES = [
-    "great question — dropping the link in the chat now",
-    "yes — the replay covers exactly that",
-    "good catch, adding it to the worksheet link now",
-    "answering that on the download link in just a sec",
-  ];
-  let answerIdx = 0;
-  const answers: GenLine[] = [];
-  for (const l of lines) {
-    if (l.mode !== "question") continue;
-    const hasAnswer = lines.some(
-      (o) => o.role === "admin" && o.offsetSeconds > l.offsetSeconds && o.offsetSeconds <= l.offsetSeconds + 90,
+  return lines;
+}
+
+
+const ANSWER_TEMPLATES = [
+  "great question — dropping the link in the chat now",
+  "yes — the replay covers exactly that",
+  "good catch, adding it to the worksheet link now",
+  "answering that on the download link in just a sec",
+];
+
+/** §7.4 pairing, enforced globally after merge so regen scopes can't strand questions. */
+function ensurePairing(lines: GenLine[], rng: () => number): GenLine[] {
+  const out = [...lines];
+  let idx = 0;
+  for (const q of lines) {
+    if (q.mode !== "question" || q.role !== "attendee") continue;
+    const answered = out.some(
+      (l) =>
+        l.role === "admin" &&
+        l.mode === "answer" &&
+        l.offsetSeconds > q.offsetSeconds &&
+        l.offsetSeconds <= q.offsetSeconds + 90,
     );
-    if (!hasAnswer) {
-      answers.push({
-        offsetSeconds: l.offsetSeconds + 20 + Math.floor(rng() * 70),
+    if (!answered) {
+      out.push({
+        offsetSeconds: q.offsetSeconds + 20 + Math.floor(rng() * 70),
         persona: ADMIN_PERSONA,
         role: "admin",
         mode: "answer",
-        text: ANSWER_TEMPLATES[answerIdx++ % ANSWER_TEMPLATES.length],
-        beat: beat.type,
+        text: ANSWER_TEMPLATES[idx++ % ANSWER_TEMPLATES.length],
+        beat: q.beat,
       });
     }
   }
-  return [...lines, ...answers];
+  return out.sort((a, b) => a.offsetSeconds - b.offsetSeconds);
 }
 
 export interface GenerationResult {
@@ -278,7 +286,7 @@ export async function runGenerationPipeline(
     usage.llmCalls++;
     generated.push(...beatLines);
   }
-  let lines = mergeLines(rng, [generated]);
+  let lines = ensurePairing(mergeLines(rng, [generated]), rng);
 
   // 6. validate; regenerate failing beats once (§7.5)
   let failures = validateScript(lines, beats).failures;
@@ -290,7 +298,7 @@ export async function runGenerationPipeline(
       const without = lines.filter((l) => l.beat !== bt);
       const regen = await generateBeatLines(inference, beat, roster, without, rng, personaUsage);
       usage.llmCalls++;
-      lines = mergeLines(rng, [[...without, ...regen]]);
+      lines = ensurePairing(mergeLines(rng, [[...without, ...regen]]), rng);
     }
     failures = validateScript(lines, beats).failures;
   }
