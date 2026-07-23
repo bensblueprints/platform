@@ -8,6 +8,7 @@ Evergreen mode plays a pre-recorded video as a scheduled "live" session on a
 ## Status
 
 **Slice 1 (infrastructure + Phase 1 timeline core): shipped and verified.**
+**Slice 2 (Phase 2 seeded chat): shipped and verified.**
 
 - Live app: https://webinar-platform.212.28.184.24.sslip.io
 - Repo: https://github.com/bensblueprints/platform (public for now — no secrets here)
@@ -18,6 +19,14 @@ Phase 1 acceptance results (spec §15):
 - Refresh resumes at the correct point: PASS (Playwright, production)
 - Offset stays accurate (wall-clock derived, re-derived every second; `/api/time` resync every 60 s with backoff): PASS (Playwright + vitest)
 - API smoke (10 checks against production): PASS — `npm run smoke -w @platform/web -- <baseUrl> <seedToken>`
+
+Phase 2 acceptance results (spec §15):
+
+- EverWebinar-format CSV imports unedited: PASS — `POST /api/dev/import-chat?webinar=<slug>[&reset=1]` (7-column schema, header detect, quoted fields, 5,000-row cap, append default; FTC lint warnings per §12 never block)
+- Malformed row returns row number and reason in EverWebinar vocabulary (`Row column count is not 7`, `Role is invalid`, `Type is invalid`, `Hour is invalid`, `Name issue`): PASS (unit + e2e)
+- Late join renders the full backlog in order; forward lines arrive on time: PASS (Playwright, production — join at ~12 s, lines at 17 s/23 s land within tolerance)
+- Three treatments (attendee / admin / highlighted) + Q badge, autoscroll-only-at-bottom with new-message pill: PASS
+- Chat rides the wall-clock tick, immune to background-tab throttle (§16.2): by design, covered by clock unit tests
 
 ## Repo map
 
