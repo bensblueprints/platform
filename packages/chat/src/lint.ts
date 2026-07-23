@@ -5,10 +5,16 @@ export interface LintWarning {
   reason: string;
 }
 
-const CURRENCY = /(\$\s?\d[\d,]*(\.\d+)?|\b\d[\d,]*\s?(dollars|usd)\b|\b\d+(\.\d+)?k\s?(a|per)\s?(month|year|week)\b)/i;
-const PERCENTAGE = /\b\d+(\.\d+)?\s?%/;
-const OUTCOME =
-  /\b(i|i've|i have|my)\b[^.!?]{0,60}\b(made|make|earned|earn|doubled|tripled|replaced|quit)\b[^.!?]{0,40}(money|income|job|profit|sales?|clients?|revenue|\$|\d+k\b)/i;
+export const FTC_PATTERNS = {
+  currency: /(\$\s?\d[\d,]*(\.\d+)?|\b\d[\d,]*\s?(dollars|usd)\b|\b\d+(\.\d+)?k\s?(a|per)\s?(month|year|week)\b)/i,
+  percentage: /\b\d+(\.\d+)?\s?%/,
+  outcome:
+    /\b(i|i've|i have|my)\b[^.!?]{0,60}\b(made|make|earned|earn|doubled|tripled|replaced|quit)\b[^.!?]{0,40}(money|income|job|profit|sales?|clients?|revenue|\$|\d+k\b)/i,
+} as const;
+
+const CURRENCY = FTC_PATTERNS.currency;
+const PERCENTAGE = FTC_PATTERNS.percentage;
+const OUTCOME = FTC_PATTERNS.outcome;
 
 /**
  * FTC 16 CFR Part 465 lint for imported scripts (spec §12): attendee-role
