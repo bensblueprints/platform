@@ -117,8 +117,8 @@ const genWorker = new Worker(
 
         if (result.failures.length > 0) {
           await genSql`
-            update generation_jobs set status = 'failed', error = ${JSON.stringify(result.failures)},
-              usage = ${JSON.stringify(result.usage)}::jsonb, updated_at = now() where id = ${jobId}
+            update generation_jobs set status = 'failed', error = ${genSql.json(result.failures)},
+              usage = ${genSql.json(result.usage)}, updated_at = now() where id = ${jobId}
           `;
           return;
         }
@@ -143,7 +143,7 @@ const genWorker = new Worker(
         }
         await genSql`
           update generation_jobs set status = 'done',
-            usage = ${JSON.stringify({ ...result.usage, regenBeat: beatType })}::jsonb, updated_at = now()
+            usage = ${genSql.json({ ...result.usage, regenBeat: beatType })}, updated_at = now()
           where id = ${jobId}
         `;
         console.log(`[generate] ${jobId} regen-beat ${beatType}: ${newLines.length} lines`);
@@ -159,8 +159,8 @@ const genWorker = new Worker(
 
       if (result.failures.length > 0) {
         await genSql`
-          update generation_jobs set status = 'failed', error = ${JSON.stringify(result.failures)},
-            usage = ${JSON.stringify(result.usage)}::jsonb, updated_at = now() where id = ${jobId}
+          update generation_jobs set status = 'failed', error = ${genSql.json(result.failures)},
+            usage = ${genSql.json(result.usage)}, updated_at = now() where id = ${jobId}
         `;
         console.warn(`[generate] ${jobId} failed validation:`, JSON.stringify(result.failures).slice(0, 300));
         return;
@@ -170,7 +170,7 @@ const genWorker = new Worker(
       for (const p of result.roster) {
         await genSql`
           insert into name_roster (webinar_id, display_name, persona)
-          values (${webinarId}, ${p.name}, ${JSON.stringify(p)}::jsonb)
+          values (${webinarId}, ${p.name}, ${genSql.json(p)})
         `;
       }
       await genSql`delete from chat_scripts where webinar_id = ${webinarId} and status = 'draft'`;
@@ -183,7 +183,7 @@ const genWorker = new Worker(
       }
       await genSql`
         update generation_jobs set status = 'done',
-          usage = ${JSON.stringify({ ...result.usage, beats: result.beats })}::jsonb, updated_at = now()
+          usage = ${genSql.json({ ...result.usage, beats: result.beats })}, updated_at = now()
         where id = ${jobId}
       `;
       console.log(`[generate] ${jobId} done: ${result.lines.length} lines, ${result.beats.length} beats`);

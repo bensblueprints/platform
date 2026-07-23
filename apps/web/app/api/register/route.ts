@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     insert into registrants (webinar_id, session_id, email, first_name, phone, timezone, utm, access_token)
     values (
       ${w.id}, ${sessionId}, ${email}, ${body.firstName ?? null}, ${body.phone ?? null},
-      ${timezone}, ${body.utm ? JSON.stringify(body.utm) : null}, ${token}
+      ${timezone}, ${body.utm ? sql.json(body.utm) : null}, ${token}
     )
     returning id
   `;

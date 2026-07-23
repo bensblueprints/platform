@@ -21,7 +21,7 @@ export const logAdapter: NotificationAdapter = {
   async send(sql, payload) {
     await sql`
       insert into notifications_log (registrant_id, kind, channel, payload)
-      values (${payload.registrantId}, ${payload.kind}, 'log', ${JSON.stringify(payload)})
+      values (${payload.registrantId}, ${payload.kind}, 'log', ${sql.json(payload as any)})
     `;
   },
 };

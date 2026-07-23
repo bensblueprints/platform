@@ -28,7 +28,7 @@ export default async function RegisterPage({
   }
   await sql`
     insert into page_views (webinar_id, utm)
-    values (${w.id}, ${Object.keys(utm).length ? JSON.stringify(utm) : null})
+    values (${w.id}, ${Object.keys(utm).length ? sql.json(utm) : null})
   `;
 
   let nextSessionAtMs: number | null = null;

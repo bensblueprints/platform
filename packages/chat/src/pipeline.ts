@@ -217,7 +217,7 @@ export async function runGenerationPipeline(
     segments = await inference.transcribe(opts.videoUrl);
     usage.llmCalls++;
     await sql`
-      insert into transcript_cache (video_hash, transcript) values (${videoHash}, ${JSON.stringify(segments)}::jsonb)
+      insert into transcript_cache (video_hash, transcript) values (${videoHash}, ${(sql as any).json(segments)})
       on conflict (video_hash) do nothing
     `;
   }
@@ -252,7 +252,7 @@ export async function runGenerationPipeline(
       }));
     }
     await sql`
-      insert into beat_cache (transcript_hash, beats) values (${transcriptHash}, ${JSON.stringify(beats)}::jsonb)
+      insert into beat_cache (transcript_hash, beats) values (${transcriptHash}, ${(sql as any).json(beats)})
       on conflict (transcript_hash) do nothing
     `;
   }
