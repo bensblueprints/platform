@@ -19,6 +19,7 @@ Everything below is how to run it end to end.
 | `/admin/scripts/[slug]` | Script generator + editor | You |
 | `/admin/analytics/[slug]` | Funnel + retention analytics | You |
 | `/admin/live` | Moderator console | You / your moderator |
+| `/admin/settings` | Integration keys (AI, GHL, Stripe) | You |
 | `/w/[slug]` | Public registration page | Your audience |
 | `/room/[token]` | The watch room (unique per registrant) | Your audience |
 
@@ -30,6 +31,14 @@ Legacy fallback domain `https://webinar-platform.212.28.184.24.sslip.io` serves 
 
 1. Open `/signup`. The first account created owns the platform. Email + password (8+ chars).
 2. Signup then closes permanently — everyone after that must use `/login`. (There is no second-user invite flow yet.)
+
+## 2b. Integrations (Settings page)
+
+`/admin/settings` — all third-party keys live here, stored in the platform database, shown masked, never logged. Blank fields are left unchanged.
+
+- **AI script generation:** `INFERENCE_BASE_URL` (any OpenAI-compatible endpoint — OpenAI, Groq, Together, local rig), `INFERENCE_API_KEY`, optional `INFERENCE_MODEL` / `TRANSCRIBE_MODEL`. Until these are set, the generator uses a deterministic mock (real structure, placeholder text).
+- **GoHighLevel:** `GHL_API_KEY` + `GHL_LOCATION_ID` — registrants get upserted with webinar tags and GHL runs reminders.
+- **Stripe:** `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` — enable native Stripe Checkout; leave blank and use offer Button URLs.
 
 ## 3. Create a webinar
 
