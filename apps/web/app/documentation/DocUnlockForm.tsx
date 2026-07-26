@@ -10,7 +10,7 @@ export default function DocUnlockForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const res = await fetch("/api/documentation/unlock", {
+    const res = await fetch("/documentation/api/unlock", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ password }),
