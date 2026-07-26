@@ -68,7 +68,7 @@ test("analytics page renders funnel, retention chart, and offer funnel", async (
   }
 });
 
-test("analytics requires the admin key", async ({ page }) => {
-  const res = await page.goto("/admin/analytics/demo");
-  expect(res?.status()).toBe(404);
+test("analytics requires auth (redirects to login without it)", async ({ page }) => {
+  await page.goto("/admin/analytics/demo");
+  await expect(page).toHaveURL(/\/login/);
 });
