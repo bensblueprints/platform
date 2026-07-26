@@ -1,8 +1,8 @@
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
-import { cleanupDeadSessions, createDb, materializeRecurringSessions } from "@platform/core";
+import { cleanupDeadSessions, createDb, getSetting, materializeRecurringSessions } from "@platform/core";
 import { activeAdapters, resolvePostSessionKind, type NotificationPayload } from "@platform/notifications";
-import { createInferenceFromEnv, runGenerationPipeline } from "@platform/chat";
+import { createInferenceFromSettings, runGenerationPipeline } from "@platform/chat";
 
 const redisUrl = process.env.REDIS_URL;
 if (!redisUrl) throw new Error("REDIS_URL is not set");
@@ -81,8 +81,8 @@ const genWorker = new Worker(
       const w = ws[0];
       if (!w?.video_url) throw new Error("webinar has no video_url");
 
-      const inference = createInferenceFromEnv();
-      const mockBeats = (process.env.INFERENCE_BASE_URL ?? "mock") === "mock";
+      const inference = await createInferenceFromSettings((k) => getSetting(genSql, k));
+      const mockBeats = ((await getSetting(genSql, "INFERENCE_BASE_URL")) ?? "mock") === "mock";
 
       let result;
       if (mode === "regen-beat" && beatType) {

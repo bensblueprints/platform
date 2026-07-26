@@ -24,6 +24,9 @@ export default async function AdminHome() {
         <h1 className="text-2xl font-semibold">Webinars</h1>
         <div className="flex items-center gap-3">
           {user && <span className="text-sm text-zinc-400">{user.email}</span>}
+          <Link href="/admin/settings" className="rounded-lg border border-zinc-600 px-4 py-2 text-sm hover:bg-zinc-800">
+            Settings
+          </Link>
           <Link href="/admin/webinars/new" className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium hover:bg-red-500">
             New webinar
           </Link>

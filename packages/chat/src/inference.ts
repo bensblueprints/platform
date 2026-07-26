@@ -132,3 +132,22 @@ export function createInferenceFromEnv(): InferenceClient {
     transcribeModel: process.env.TRANSCRIBE_MODEL,
   });
 }
+
+/**
+ * Settings-store-selected adapter (owner Settings page): reads
+ * INFERENCE_* from app_settings via a lookup function, falls back to env,
+ * then to the mock when nothing is configured.
+ */
+export async function createInferenceFromSettings(
+  lookup: (key: string) => Promise<string | null>,
+): Promise<InferenceClient> {
+  const baseUrl = await lookup("INFERENCE_BASE_URL");
+  const apiKey = await lookup("INFERENCE_API_KEY");
+  if (!baseUrl || baseUrl === "mock" || !apiKey) return createMockClient();
+  return createOpenAiClient({
+    baseUrl,
+    apiKey,
+    chatModel: (await lookup("INFERENCE_MODEL")) ?? undefined,
+    transcribeModel: (await lookup("TRANSCRIBE_MODEL")) ?? undefined,
+  });
+}

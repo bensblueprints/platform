@@ -1,4 +1,4 @@
-import {  getSharedDb  } from "@platform/core";
+import {  getSetting, getSharedDb  } from "@platform/core";
 import { parseCheckoutCompleted, verifyWebhookSignature } from "@platform/offers";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ const sql = getSharedDb();
  * stripe_session_id constraint on offer_events.
  */
 export async function POST(req: Request) {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  const secret = await getSetting(sql, "STRIPE_WEBHOOK_SECRET");
   if (!secret) return Response.json({ error: "payments_not_configured" }, { status: 503 });
 
   const rawBody = await req.text();

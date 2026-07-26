@@ -29,9 +29,13 @@ export const logAdapter: NotificationAdapter = {
 /** GoHighLevel: contact upsert + tag (spec §11 recommended default). Active only with env keys. */
 export const ghlAdapter: NotificationAdapter = {
   name: "ghl",
-  async send(_sql, payload) {
-    const apiKey = process.env.GHL_API_KEY;
-    const locationId = process.env.GHL_LOCATION_ID;
+  async send(sql, payload) {
+    const rows = await sql<{ key: string; value: string }[]>`
+      select key, value from app_settings where key in ('GHL_API_KEY', 'GHL_LOCATION_ID')
+    `;
+    const map = new Map(rows.map((r) => [r.key, r.value]));
+    const apiKey = map.get("GHL_API_KEY") ?? process.env.GHL_API_KEY;
+    const locationId = map.get("GHL_LOCATION_ID") ?? process.env.GHL_LOCATION_ID;
     if (!apiKey || !locationId) return; // inactive without keys
     const res = await fetch("https://services.leadconnectorhq.com/contacts/upsert", {
       method: "POST",
@@ -53,6 +57,7 @@ export const ghlAdapter: NotificationAdapter = {
 
 export function activeAdapters(): NotificationAdapter[] {
   const adapters: NotificationAdapter[] = [logAdapter];
-  if (process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID) adapters.push(ghlAdapter);
+  // ghlAdapter self-activates when keys exist (settings store or env)
+  adapters.push(ghlAdapter);
   return adapters;
 }

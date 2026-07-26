@@ -1,4 +1,4 @@
-import {  getSharedDb  } from "@platform/core";
+import {  getSetting, getSharedDb  } from "@platform/core";
 import { createCheckoutSession } from "@platform/offers";
 import { offerWindowState, currentPriceCents } from "@platform/offers";
 import { offsetSeconds } from "@platform/timeline";
@@ -63,7 +63,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return Response.json({ url: offer.button_url, amountCents: null });
   }
 
-  const secretKey = process.env.STRIPE_SECRET_KEY;
+  const secretKey = await getSetting(sql, "STRIPE_SECRET_KEY");
   if (!secretKey) {
     return Response.json({ error: "payments_not_configured" }, { status: 503 });
   }
