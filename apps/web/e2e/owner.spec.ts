@@ -6,7 +6,7 @@ import { test, expect } from "@playwright/test";
  * → offer button_url drives an external checkout.
  */
 const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
-const OWNER = { email: "owner@advancedmarketing.co", password: "platform-owner-2026!" };
+const OWNER = { email: "owner-e2e@example.com", password: "e2e-owner-test-pw" };
 const SAMPLE_VIDEO = "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4";
 
 let webinarId: string;
