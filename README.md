@@ -16,8 +16,19 @@ Evergreen mode plays a pre-recorded video as a scheduled "live" session on a
 **Slice 7 (Phase 7 real chat + moderator console): shipped and verified.**
 **Slice 8 (Phase 8 notifications + analytics): shipped and verified.**
 **Slice 9 (Phase 9 chat script generator): shipped and verified (mock inference; real-API acceptance pending keys).**
+**Slice 10 (end-to-end product): owner auth, dashboard, video upload + range serving, packaged at webinar-clone.onetimesuite.com.**
 
-- Live app: https://webinar-platform.212.28.184.24.sslip.io
+- Live app: https://webinar-clone.onetimesuite.com (fallback: https://webinar-platform.212.28.184.24.sslip.io)
+- **Usage guide: docs/USAGE.md** — the full owner/moderator/audience walkthrough
+
+Slice 10 (end-to-end product):
+
+- Owner auth (email+password, scrypt, httpOnly session cookie; bootstrap-first-account signup then closed; Supabase Auth bypassed — Kong broken). `/admin` gated by middleware; interim `?key=` bypass kept for scripts/e2e
+- Dashboard: webinar list + create wizard (all three schedule modes)
+- Video upload to a persistent Docker volume (`-v platform-videos:/data/videos` via custom_docker_run_options); duration auto-detected from the mp4 mvhd box; served via `/api/media/[id]` with HTTP 206 range support (verified e2e)
+- Manage hub per webinar: video, offer create (incl. `button_url` external checkout — honored by the checkout endpoint while Stripe is off), curve, roster, CSV import with EW vocabulary + FTC lint
+- Chat rail constrained to the viewport (sticky, calc height) — the "chat runs too far down" fix
+- Owner journey e2e: signup → login → create → upload → 206 range → viewer registers → room plays the upload → offer CTA to external checkout
 - Repo: https://github.com/bensblueprints/platform (public for now — no secrets here)
 
 Phase 1 acceptance results (spec §15):
