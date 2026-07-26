@@ -57,6 +57,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     values (${offer.id}, ${reg.session_id}, ${reg.id}, 'click', ${offset})
   `;
 
+  // External checkout link (button_url) needs no payment integration —
+  // used while Stripe is not wired into the platform.
+  if (offer.button_url) {
+    return Response.json({ url: offer.button_url, amountCents: null });
+  }
+
   const secretKey = process.env.STRIPE_SECRET_KEY;
   if (!secretKey) {
     return Response.json({ error: "payments_not_configured" }, { status: 503 });

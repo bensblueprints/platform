@@ -130,7 +130,10 @@ export default function ChatRail({
   const newCount = vis.length - lastSeenCount;
 
   return (
-    <section aria-label="Live chat" className="relative flex h-[420px] flex-col rounded-lg bg-zinc-900 md:h-full">
+    <section
+      aria-label="Live chat"
+      className="relative flex h-[420px] flex-col rounded-lg bg-zinc-900 md:sticky md:top-4 md:h-[calc(100vh-2rem)]"
+    >
       <header className="border-b border-zinc-800 px-4 py-2 text-sm font-medium text-zinc-300">
         Live chat
       </header>
