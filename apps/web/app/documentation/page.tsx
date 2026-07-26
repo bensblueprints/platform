@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { getSetting, getSharedDb } from "@platform/core";
-import { isDocUnlocked } from "../../../lib/doc-vault";
+import { isDocUnlocked } from "../../lib/doc-vault";
 import DocUnlockForm from "./DocUnlockForm";
 
 export const dynamic = "force-dynamic";

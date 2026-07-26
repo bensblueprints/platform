@@ -1,4 +1,4 @@
-import { docCookie, verifyDocPassword, docCookieSecret } from "../../../lib/doc-vault";
+import { docCookie, verifyDocPassword, docCookieSecret } from "../../../../lib/doc-vault";
 
 export const dynamic = "force-dynamic";
 
