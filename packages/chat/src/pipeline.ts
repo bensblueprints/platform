@@ -292,6 +292,24 @@ export async function runGenerationPipeline(
     `;
   }
 
+  // normalize classifier output to the DENSITY enum (LLMs improvise labels)
+  const TYPE_SYNONYMS: Record<string, BeatType> = {
+    welcome: "arrival", opening: "intro", opener: "intro", hook: "intro",
+    demo: "teaching", demonstration: "teaching", content: "teaching", lesson: "teaching",
+    testimonial: "story", case_study: "story",
+    cta: "offer", call_to_action: "offer", pricing: "offer",
+    objections: "objection_handling", faq: "qa", "q&a": "qa", questions: "qa",
+    wrap_up: "close", outro: "close", conclusion: "close", recap: "close",
+  };
+  const VALID = new Set(["arrival","intro","credibility","teaching","story","transition","pitch","offer","objection_handling","close","qa"]);
+  beats = (beats as Beat[])
+    .map((b) => {
+      const t = String(b.type).toLowerCase().replace(/[\s-]+/g, "_") as BeatType;
+      const type = VALID.has(t) ? t : TYPE_SYNONYMS[t] ?? "teaching";
+      return { ...b, type };
+    })
+    .filter((b) => b.end > b.start);
+
   // 3. roster (sized to the audience knob: ~1 persona per 8 attendees, 20-60)
   const audience = Math.max(10, opts.audienceSize ?? 240);
   const densityScale = Math.min(6, Math.max(0.25, audience / 240));
