@@ -5,7 +5,7 @@ import { targetLineCount, burstOffsets, DENSITY } from "./density";
 import { generateRoster, type Persona } from "./personas";
 import { mergeLines } from "./merge";
 import { validateScript, type GenLine, type ValidationFailure } from "./validate";
-import { contentWords } from "./ground";
+import { contentWords, isAtmospheric } from "./ground";
 
 /** Structural DB handle so @platform/chat never depends on @platform/core. */
 export type SqlLike = <T = any>(strings: TemplateStringsArray, ...values: any[]) => Promise<T>;
@@ -228,6 +228,26 @@ const ANSWER_TEMPLATES = [
 ];
 
 /** §7.4 pairing, enforced globally after merge so regen scopes can't strand questions. */
+/** Trim overproduction to the density band: drop sentiment-only filler
+ * first, then seeded-random others, until organic count is inside. */
+function trimToDensity(lines: GenLine[], beats: Beat[], rng: () => number): GenLine[] {
+  const target = beats.reduce((s, b) => s + targetLineCount(b), 0);
+  const organic = (ls: GenLine[]) => ls.filter((l) => !(l.role === "admin" && l.mode === "answer"));
+  const upper = target + Math.max(target * 0.15, 2);
+  if (organic(lines).length <= upper) return lines;
+  const hypeOnly = (l: GenLine) => isAtmospheric(l.text);
+  let out = [...lines];
+  // pass 1: drop sentiment-only lines (least informational)
+  for (let i = out.length - 1; i >= 0 && organic(out).length > upper; i--) {
+    if (out[i].role === "attendee" && out[i].mode === "chat" && hypeOnly(out[i])) out.splice(i, 1);
+  }
+  // pass 2: seeded-random attendee chat drops
+  for (let i = out.length - 1; i >= 0 && organic(out).length > upper; i--) {
+    if (out[i].role === "attendee" && out[i].mode === "chat" && rng() < 0.7) out.splice(i, 1);
+  }
+  return out;
+}
+
 /** Repair persona spacing post-merge: reassign lines violating the 45s
  * rule to a free persona at that offset (drop only if nobody is free). */
 function repairPersonaSpacing(lines: GenLine[], roster: Persona[], rng: () => number): GenLine[] {
@@ -457,6 +477,7 @@ export async function runGenerationPipeline(
     generated.push(...beatLines);
   }
   let lines = repairPersonaSpacing(ensurePairing(mergeLines(rng, [generated]), rng), roster, rng);
+  lines = trimToDensity(lines, beats, rng);
 
   // Top-up: if organic volume is below the density band's floor, generate
   // once more for the sparsest beat before validating (§7.4). Persona
