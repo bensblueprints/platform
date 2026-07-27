@@ -311,7 +311,7 @@ export async function runGenerationPipeline(
     } else {
       // condense the transcript for classification: the classifier needs
       // the gist, not every word (small models have tiny TPM ceilings)
-      const perSeg = Math.max(60, Math.floor((5400 * 4) / Math.max(1, segments.length)));
+      const perSeg = Math.max(40, Math.floor(11000 / Math.max(1, segments.length)));
       const condensed = segments
         .map((s) => `[${Math.floor(s.start)}s] ${s.text.length > perSeg ? s.text.slice(0, perSeg) + "…" : s.text}`)
         .join("\n");
