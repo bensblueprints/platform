@@ -147,8 +147,10 @@ const genWorker = new Worker(
             "-vn", "-ac", "1", "-ar", "16000", "-b:a", "24k",
             `/tmp/${webinarId}.mp3`,
           ], { timeout: 5 * 60_000 });
-          const { readFileSync } = await import("node:fs");
-          transcribeInput = { blob: new Blob([readFileSync(`/tmp/${webinarId}.mp3`)], { type: "audio/mpeg" }), filename: "audio.mp3" };
+          const { readFileSync, statSync } = await import("node:fs");
+          const mp3Path = `/tmp/${webinarId}.mp3`;
+          console.log(`[generate] voice mp3 produced: ${statSync(mp3Path).size} bytes`);
+          transcribeInput = { blob: new Blob([readFileSync(mp3Path)], { type: "audio/mpeg" }), filename: "audio.mp3" };
         }
       }
       console.log(`[generate] transcribe via: ${"blob" in transcribeInput ? "compressed mp3 blob" : "video url " + w.video_url}`);
