@@ -136,7 +136,7 @@ async function generateBeatLines(
     .join("; ");
   const continuity = priorLines.slice(-8).map((l) => `${l.persona}: ${l.text}`).join("\n");
 
-  const buildMessages = () => [
+  const buildMessages = (count: number) => [
     {
       role: "system" as const,
       content:
@@ -154,21 +154,26 @@ async function generateBeatLines(
     },
   ];
 
-  // one retry on malformed model output (small models occasionally truncate)
-  let raw = "";
-  let parsed: { name: string; mode: string; text: string }[];
-  try {
-    raw = await inference.generate(buildMessages());
-    parsed = parseGeneratedLines(raw);
-  } catch (err) {
-    console.error(`[beat ${beat.type}] attempt 1 failed:`, String(err).slice(0, 120), "| raw:", raw.slice(0, 400));
-    raw = await inference.generate(buildMessages());
-    try {
-      parsed = parseGeneratedLines(raw);
-    } catch (err2) {
-      console.error(`[beat ${beat.type}] attempt 2 failed:`, String(err2).slice(0, 120), "| raw:", raw.slice(0, 400));
-      throw err2;
+  // big targets are generated in half-size calls — small models truncate
+  // long outputs, and an unbalanced object kills the whole beat otherwise
+  async function generateChunk(count: number): Promise<{ name: string; mode: string; text: string }[]> {
+    const messages = buildMessages(count);
+    let raw = "";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        raw = await inference.generate(messages);
+        return parseGeneratedLines(raw);
+      } catch (err) {
+        console.error(`[beat ${beat.type}] chunk attempt ${attempt + 1} failed:`, String(err).slice(0, 100));
+      }
     }
+    return []; // graceful: a dropped chunk costs density, not the job
+  }
+
+  const halves = target > 8 ? [Math.ceil(target / 2), Math.floor(target / 2)] : [target];
+  let parsed: { name: string; mode: string; text: string }[] = [];
+  for (const count of halves) {
+    parsed.push(...(await generateChunk(count)));
   }
   const offsets = burstOffsets(rng, parsed.length, beat.start + 3, Math.max(beat.start + 10, beat.end - 3));
   const anchors = contentWords(beat.transcript);
