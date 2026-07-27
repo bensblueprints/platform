@@ -142,21 +142,37 @@ const genWorker = new Worker(
           console.log(`[generate] compressing ${size} bytes to voice mp3`);
           const raw = await (await fetch(abs)).blob();
           writeFileSync(`/tmp/${webinarId}.mp4`, Buffer.from(await raw.arrayBuffer()));
+          // Groq's practical upload ceiling is a few MB — chunk into 150s
+          // segments (~1MB each) and stitch transcripts with time offsets.
           await execFileP("ffmpeg", [
             "-y", "-i", `/tmp/${webinarId}.mp4`,
             "-vn", "-ac", "1", "-ar", "16000", "-b:a", "24k",
-            `/tmp/${webinarId}.mp3`,
+            "-f", "segment", "-segment_time", "150", "-reset_timestamps", "1",
+            `/tmp/${webinarId}-%03d.mp3`,
           ], { timeout: 5 * 60_000 });
-          const { readFileSync, statSync } = await import("node:fs");
-          const mp3Path = `/tmp/${webinarId}.mp3`;
-          console.log(`[generate] voice mp3 produced: ${statSync(mp3Path).size} bytes`);
-          transcribeInput = { blob: new Blob([readFileSync(mp3Path)], { type: "audio/mpeg" }), filename: "audio.mp3" };
+          const { readdirSync, readFileSync, statSync } = await import("node:fs");
+          const chunks = readdirSync("/tmp")
+            .filter((f) => f.startsWith(`${webinarId}-`) && f.endsWith(".mp3"))
+            .sort();
+          console.log(`[generate] transcribing ${chunks.length} chunks: ${chunks.map((c) => statSync("/tmp/" + c).size).join(",")} bytes`);
+          (transcribeInput as any).chunks = chunks;
         }
       }
-      console.log(`[generate] transcribe via: ${"blob" in transcribeInput ? "compressed mp3 blob" : "video url " + w.video_url}`);
-      const transcribeFn = ("blob" in transcribeInput)
-        ? () => inference.transcribeBlob((transcribeInput as any).blob, (transcribeInput as any).filename)
-        : undefined;
+      console.log(`[generate] transcribe via: ${(transcribeInput as any).chunks ? "chunked mp3" : "blob" in transcribeInput ? "compressed mp3 blob" : "video url " + w.video_url}`);
+      const transcribeFn = (transcribeInput as any).chunks
+        ? async () => {
+            const { readFileSync } = await import("node:fs");
+            const all: { start: number; end: number; text: string }[] = [];
+            for (const [i, c] of (transcribeInput as any).chunks.entries()) {
+              const blob = new Blob([readFileSync(`/tmp/${c}`)], { type: "audio/mpeg" });
+              const segs = await inference.transcribeBlob(blob, c);
+              for (const seg of segs) all.push({ start: seg.start + i * 150, end: seg.end + i * 150, text: seg.text });
+            }
+            return all;
+          }
+        : ("blob" in transcribeInput)
+          ? () => inference.transcribeBlob((transcribeInput as any).blob, (transcribeInput as any).filename)
+          : undefined;
 
       let result;
       if (mode === "regen-beat" && beatType) {
