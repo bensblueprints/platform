@@ -140,7 +140,7 @@ async function generateBeatLines(
     {
       role: "system" as const,
       content:
-        "You write realistic live-chat lines for a webinar audience, keyed to what the presenter actually says. Return JSON only: {\"lines\":[{ \"name\": \"<persona name or {{persona}}>\", \"mode\": \"chat|question\", \"text\": \"...\" }]}. Never write earnings, income, or results claims. Never reference content not in the transcript slice. Attendees ask logistics questions and react to specific moments.",
+        "You write realistic live-chat lines for a webinar audience, keyed to what the presenter actually says. Return JSON only: {\"lines\":[{ \"name\": \"<persona name or {{persona}}>\", \"mode\": \"chat|question\", \"text\": \"...\" }]}. Never write earnings, income, or results claims. Never reference content not in the transcript slice. Never invent numbers, prices, percentages, names, or features — only use ones that literally appear in the slice. Attendees ask logistics questions and react to specific moments.",
     },
     {
       role: "user" as const,
@@ -313,7 +313,7 @@ export async function runGenerationPipeline(
         {
           role: "system",
           content:
-            'Classify this webinar transcript into beats. Return JSON only: {"beats":[{"type":"arrival|intro|credibility|teaching|story|transition|pitch|offer|objection_handling|close|qa","start":<seconds>,"end":<seconds>}]}. Cover the whole timeline contiguously.',
+            'Classify this webinar transcript into beats. Return JSON only: {"beats":[{"type":"arrival|intro|credibility|teaching|story|transition|pitch|offer|objection_handling|close|qa","start":<seconds>,"end":<seconds>}]}. Return at most 10 beats total; do not fragment short moments into separate beats. Cover the whole timeline contiguously.',
         },
         { role: "user", content: segments.map((s) => `[${Math.floor(s.start)}s] ${s.text}`).join("\n") },
       ], { json: true });
@@ -345,6 +345,20 @@ export async function runGenerationPipeline(
       return { ...b, type };
     })
     .filter((b) => b.end > b.start);
+
+  // merge micro-beats (<20s) into the previous beat — fragmentation starves
+  // the per-beat density model and multiplies generation calls
+  const merged: Beat[] = [];
+  for (const b of beats as Beat[]) {
+    const prev = merged[merged.length - 1];
+    if (prev && b.end - b.start < 20 && (b.type === prev.type || prev.type === "teaching" || b.type === "teaching")) {
+      prev.end = b.end;
+      prev.transcript = `${prev.transcript} ${b.transcript}`;
+    } else {
+      merged.push({ ...b });
+    }
+  }
+  beats = merged;
 
   if (!opts.useMockBeats) {
     await sql`
