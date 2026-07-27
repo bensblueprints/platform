@@ -137,7 +137,9 @@ const genWorker = new Worker(
         const abs = origin.replace(/\/$/, "") + w.video_url;
         const head = await fetch(abs, { method: "HEAD" });
         const size = Number(head.headers.get("content-length") ?? 0);
+        console.log(`[generate] media pre-check: ${abs} size=${size}`);
         if (size > 18 * 1024 * 1024) {
+          console.log(`[generate] compressing ${size} bytes to voice mp3`);
           const raw = await (await fetch(abs)).blob();
           writeFileSync(`/tmp/${webinarId}.mp4`, Buffer.from(await raw.arrayBuffer()));
           await execFileP("ffmpeg", [
@@ -149,6 +151,7 @@ const genWorker = new Worker(
           transcribeInput = { blob: new Blob([readFileSync(`/tmp/${webinarId}.mp3`)], { type: "audio/mpeg" }), filename: "audio.mp3" };
         }
       }
+      console.log(`[generate] transcribe via: ${"blob" in transcribeInput ? "compressed mp3 blob" : "video url " + w.video_url}`);
       const transcribeFn = ("blob" in transcribeInput)
         ? () => inference.transcribeBlob((transcribeInput as any).blob, (transcribeInput as any).filename)
         : undefined;
