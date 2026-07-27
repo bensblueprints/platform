@@ -313,7 +313,7 @@ export async function runGenerationPipeline(
       // the whole transcript busts small models' TPM ceilings, and char-based
       // estimation of their tokenizer is unreliable (measured 2.4:1 and worse)
       const classify = async (segs: { start: number; end: number; text: string }[], maxBeats: number) => {
-        const perSeg = Math.max(40, Math.floor(9000 / Math.max(1, segs.length)));
+        const perSeg = Math.max(30, Math.floor(4000 / Math.max(1, segs.length)));
         const condensed = segs
           .map((s) => `[${Math.floor(s.start)}s] ${s.text.length > perSeg ? s.text.slice(0, perSeg) + "…" : s.text}`)
           .join("\n");
@@ -333,10 +333,8 @@ export async function runGenerationPipeline(
       let rawBeats: { type: BeatType; start: number; end: number }[];
       if (segments.length > 24) {
         const mid = Math.floor(segments.length / 2);
-        const [a, b] = await Promise.all([
-          classify(segments.slice(0, mid), 6),
-          classify(segments.slice(mid), 6),
-        ]);
+        const a = await classify(segments.slice(0, mid), 6);
+        const b = await classify(segments.slice(mid), 6);
         // reconcile the seam: drop any second-half beat starting before the first half's last beat ends
         const lastA = [...a].sort((x, y) => x.end - y.end).pop()?.end ?? 0;
         rawBeats = [...a, ...b.filter((x) => x.start >= lastA - 30)];
