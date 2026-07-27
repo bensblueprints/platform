@@ -63,19 +63,18 @@ export function grounded(lineText: string, transcript: string): boolean {
     if (/^[A-Z][a-z]{2,}/.test(w) && !said.includes(w.toLowerCase())) return false;
   }
 
-  // whole-concept hallucination: no overlap at all
+  // anchoring rule: a line fails only when it has NO anchor in the
+  // transcript AND carries a distinctive word (8+ chars) never said.
+  // Anchored lines and generic-English lines pass — real chat is both.
   const line = contentWords(lineText);
-  if (line.size >= 3) {
-    const transcriptWords = contentWords(transcript);
-    let any = false;
-    for (const w of line) {
-      if (transcriptWords.has(w)) {
-        any = true;
-        break;
-      }
-    }
-    if (!any) return false;
+  const transcriptWords = contentWords(transcript);
+  let anchored = false;
+  let distinctiveUnsaid = false;
+  for (const w of line) {
+    if (w.length >= 5 && transcriptWords.has(w)) anchored = true;
+    if (w.length >= 8 && !HYPE.has(w) && !transcriptWords.has(w)) distinctiveUnsaid = true;
   }
+  if (!anchored && distinctiveUnsaid) return false;
 
   return true;
 }

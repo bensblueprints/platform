@@ -244,9 +244,12 @@ function trimToDensity(lines: GenLine[], beats: Beat[], rng: () => number): GenL
   for (let i = out.length - 1; i >= 0 && organic(out).length > upper; i--) {
     if (out[i].role === "attendee" && out[i].mode === "chat" && hypeOnly(out[i])) out.splice(i, 1);
   }
-  // pass 2: seeded-random attendee chat drops
-  for (let i = out.length - 1; i >= 0 && organic(out).length > upper; i--) {
-    if (out[i].role === "attendee" && out[i].mode === "chat" && rng() < 0.7) out.splice(i, 1);
+  // pass 2: seeded-random attendee chat drops, looping until inside band
+  let guard = 0;
+  while (organic(out).length > upper && guard++ < 10) {
+    for (let i = out.length - 1; i >= 0 && organic(out).length > upper; i--) {
+      if (out[i].role === "attendee" && out[i].mode === "chat" && rng() < 0.7) out.splice(i, 1);
+    }
   }
   return out;
 }
