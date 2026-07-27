@@ -61,19 +61,30 @@ export function createOpenAiClient(opts: {
     transcribeBlob: (blob, filename) => doTranscribe(blob, filename),
 
     async generate(messages, genOpts) {
-      const res = await fetch(`${base}/v1/chat/completions`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${opts.apiKey}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          model: chatModel,
-          messages,
-          temperature: 0.9,
-          ...(genOpts?.json ? { response_format: { type: "json_object" } } : {}),
-        }),
-      });
-      if (!res.ok) throw new Error(`generate failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
-      const json = (await res.json()) as { choices: { message: { content: string } }[] };
-      return json.choices[0].message.content;
+      // retry rate limits with backoff (groq free tier is 429-prone)
+      for (let attempt = 0; ; attempt++) {
+        const res = await fetch(`${base}/v1/chat/completions`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${opts.apiKey}`, "content-type": "application/json" },
+          body: JSON.stringify({
+            model: chatModel,
+            messages,
+            temperature: 0.9,
+            ...(genOpts?.json ? { response_format: { type: "json_object" } } : {}),
+          }),
+        });
+        if (res.ok) {
+          const json = (await res.json()) as { choices: { message: { content: string } }[] };
+          return json.choices[0].message.content;
+        }
+        if (res.status === 429 && attempt < 4) {
+          const retryAfter = Number(res.headers.get("retry-after") ?? 0);
+          const waitMs = Math.max(retryAfter * 1000, 2000 * 2 ** attempt);
+          await new Promise((r) => setTimeout(r, Math.min(waitMs, 60_000)));
+          continue;
+        }
+        throw new Error(`generate failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
+      }
     },
   };
 }
