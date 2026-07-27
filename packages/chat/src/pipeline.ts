@@ -17,6 +17,15 @@ const ADMIN_PERSONA = "Sarah (Support)";
  * node:crypto was avoided deliberately: this package also ships to the
  * browser bundle, where node: schemes don't build.
  */
+/** Extract the first JSON object from model output (fences, prose, etc.). */
+function extractJson(raw: string): any {
+  const cleaned = raw.replace(/```json|```/g, "");
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start === -1 || end <= start) throw new Error("no JSON object in model output");
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
+
 function sha256(s: string): string {
   const fnv = (seed: number) => {
     let h = seed >>> 0;
@@ -72,8 +81,7 @@ function applyStyle(text: string, persona: Persona, rng: () => number, anchors?:
 }
 
 function parseGeneratedLines(raw: string): { name: string; mode: string; text: string }[] {
-  const cleaned = raw.replace(/```json|```/g, "").trim();
-  const parsed = JSON.parse(cleaned) as { lines?: { name?: string; mode?: string; text?: string }[] };
+  const parsed = extractJson(raw) as { lines?: { name?: string; mode?: string; text?: string }[] };
   return (parsed.lines ?? [])
     .filter((l) => l.text && l.mode)
     .map((l) => ({ name: l.name ?? "{{persona}}", mode: l.mode!, text: l.text! }));
@@ -119,7 +127,6 @@ async function generateBeatLines(
           `At least one question referencing something specific in the slice. Use {{persona}} as the name for exactly one third of the lines (roster substitution happens later).`,
       },
     ],
-    { json: true },
   );
 
   const parsed = parseGeneratedLines(raw);
