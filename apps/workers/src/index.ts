@@ -58,6 +58,9 @@ async function importYoutube(sql: ReturnType<typeof createDb>, webinarId: string
   const args = [
     "-f", "best[ext=mp4][height<=720]/best[ext=mp4]/best",
     "--no-playlist",
+    // datacenter IPs trip YouTube's bot check; alternate player clients bypass it cookie-free
+    "--extractor-args", "youtube:player_client=android,web_embedded,ios",
+    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "-o", out,
   ];
   let cookiePath: string | null = null;
