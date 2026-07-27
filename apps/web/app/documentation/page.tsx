@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { getSetting, getSharedDb } from "@platform/core";
-import { isDocUnlocked } from "../../lib/doc-vault";
-import DocUnlockForm from "./DocUnlockForm";
+import { isDocUnlocked } from "../../../lib/doc-vault";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +16,29 @@ interface VaultSection {
   entries: VaultEntry[];
 }
 
-export default async function DocumentationPage() {
+export default async function DocumentationPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
   const unlocked = await isDocUnlocked((await headers()).get("cookie"));
   if (!unlocked) {
     return (
       <main className="mx-auto flex min-h-screen max-w-sm flex-col items-center justify-center gap-6 p-8">
         <h1 className="text-xl font-semibold">Owner vault</h1>
-        <DocUnlockForm />
+        {/* Plain HTML form — works even when the CDN path blocks /_next chunks. */}
+        <form action="/documentation/api/unlock" method="post" className="flex w-full flex-col gap-3">
+          <input
+            type="password"
+            name="password"
+            placeholder="Vault password"
+            required
+            className="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-white placeholder-zinc-500 focus:border-red-500 focus:outline-none"
+          />
+          <button className="rounded-lg bg-red-600 px-6 py-3 font-semibold hover:bg-red-500">Unlock</button>
+          {error === "1" && <p className="text-sm text-red-300">Wrong password.</p>}
+        </form>
       </main>
     );
   }
