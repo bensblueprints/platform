@@ -19,6 +19,8 @@ export interface ChatMessage {
 
 export interface InferenceClient {
   transcribe(videoUrl: string): Promise<TranscriptSegment[]>;
+  /** Transcribe an already-downloaded file (e.g. voice-compressed mp3). */
+  transcribeBlob(blob: Blob, filename: string): Promise<TranscriptSegment[]>;
   generate(messages: ChatMessage[], opts?: { json?: boolean }): Promise<string>;
 }
 
@@ -33,25 +35,30 @@ export function createOpenAiClient(opts: {
   const transcribeModel = opts.transcribeModel ?? "whisper-1";
   const base = opts.baseUrl.replace(/\/$/, "");
 
+  async function doTranscribe(blob: Blob, filename: string): Promise<TranscriptSegment[]> {
+    const form = new FormData();
+    form.append("file", blob, filename);
+    form.append("model", transcribeModel);
+    form.append("response_format", "verbose_json");
+    form.append("timestamp_granularities[]", "segment");
+
+    const res = await fetch(`${base}/v1/audio/transcriptions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${opts.apiKey}` },
+      body: form,
+    });
+    if (!res.ok) throw new Error(`transcribe failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
+    const json = (await res.json()) as { segments?: { start: number; end: number; text: string }[] };
+    return (json.segments ?? []).map((s) => ({ start: s.start, end: s.end, text: s.text.trim() }));
+  }
+
   return {
-    async transcribe(videoUrl) {
+    transcribe: async (videoUrl) => {
       const video = await fetch(videoUrl);
       if (!video.ok) throw new Error(`video fetch failed: ${video.status}`);
-      const form = new FormData();
-      form.append("file", await video.blob(), "video.mp4");
-      form.append("model", transcribeModel);
-      form.append("response_format", "verbose_json");
-      form.append("timestamp_granularities[]", "segment");
-
-      const res = await fetch(`${base}/v1/audio/transcriptions`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${opts.apiKey}` },
-        body: form,
-      });
-      if (!res.ok) throw new Error(`transcribe failed: ${res.status} ${(await res.text()).slice(0, 200)}`);
-      const json = (await res.json()) as { segments?: { start: number; end: number; text: string }[] };
-      return (json.segments ?? []).map((s) => ({ start: s.start, end: s.end, text: s.text.trim() }));
+      return doTranscribe(await video.blob(), "video.mp4");
     },
+    transcribeBlob: (blob, filename) => doTranscribe(blob, filename),
 
     async generate(messages, genOpts) {
       const res = await fetch(`${base}/v1/chat/completions`, {
@@ -77,6 +84,7 @@ export function createOpenAiClient(opts: {
 let mockSeq = 0;
 export function createMockClient(): InferenceClient {
   return {
+    transcribeBlob: async () => createMockClient().transcribe(""),
     async transcribe() {
       return [
         { start: 0, end: 15, text: "Welcome everyone, thanks for joining the session today." },

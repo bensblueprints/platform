@@ -129,6 +129,30 @@ const genWorker = new Worker(
       const inference = await createInferenceFromSettings((k) => getSetting(genSql, k));
       const mockBeats = ((await getSetting(genSql, "INFERENCE_BASE_URL")) ?? "mock") === "mock";
 
+      // Groq transcription caps ~25MB — voice-compress big videos to 16kHz
+      // mono mp3 first (19min ≈ 4MB) and transcribe the audio.
+      let transcribeInput: { videoUrl: string } | { blob: Blob; filename: string } = { videoUrl: w.video_url };
+      if (w.video_url?.startsWith("/api/media/")) {
+        const origin = (await getSetting(genSql, "PUBLIC_ORIGIN")) ?? "https://webinar-clone.onetimesuite.com";
+        const abs = origin.replace(/\/$/, "") + w.video_url;
+        const head = await fetch(abs, { method: "HEAD" });
+        const size = Number(head.headers.get("content-length") ?? 0);
+        if (size > 18 * 1024 * 1024) {
+          const raw = await (await fetch(abs)).blob();
+          writeFileSync(`/tmp/${webinarId}.mp4`, Buffer.from(await raw.arrayBuffer()));
+          await execFileP("ffmpeg", [
+            "-y", "-i", `/tmp/${webinarId}.mp4`,
+            "-vn", "-ac", "1", "-ar", "16000", "-b:a", "24k",
+            `/tmp/${webinarId}.mp3`,
+          ], { timeout: 5 * 60_000 });
+          const { readFileSync } = await import("node:fs");
+          transcribeInput = { blob: new Blob([readFileSync(`/tmp/${webinarId}.mp3`)], { type: "audio/mpeg" }), filename: "audio.mp3" };
+        }
+      }
+      const transcribeFn = ("blob" in transcribeInput)
+        ? () => inference.transcribeBlob((transcribeInput as any).blob, (transcribeInput as any).filename)
+        : undefined;
+
       let result;
       if (mode === "regen-beat" && beatType) {
         // §7.7: regenerate one beat; other beats' lines (incl. hand edits) untouched
@@ -203,6 +227,7 @@ const genWorker = new Worker(
         durationSeconds: w.duration_seconds,
         useMockBeats: mockBeats,
         audienceSize: w.chat_audience_size ?? 240,
+        transcribeFn,
       });
 
       if (result.failures.length > 0) {

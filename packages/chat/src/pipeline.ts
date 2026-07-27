@@ -1,5 +1,5 @@
 import { mulberry32 } from "@platform/timeline";
-import type { InferenceClient } from "./inference";
+import type { InferenceClient, TranscriptSegment } from "./inference";
 import type { Beat, BeatType } from "./density";
 import { targetLineCount, burstOffsets, DENSITY } from "./density";
 import { generateRoster, type Persona } from "./personas";
@@ -228,6 +228,8 @@ export async function runGenerationPipeline(
     existingRoster?: Persona[];
     /** Scales line density and roster size (webinars.chat_audience_size, default 240). */
     audienceSize?: number;
+    /** Overrides stage 1 (e.g. voice-compressed audio for oversized videos). */
+    transcribeFn?: () => Promise<TranscriptSegment[]>;
   },
 ): Promise<GenerationResult> {
   const usage = { beats: 0, llmCalls: 0, transcriptHash: "" };
@@ -240,7 +242,7 @@ export async function runGenerationPipeline(
   let segments = cachedT[0]?.transcript;
   if (typeof segments === "string") segments = JSON.parse(segments); // legacy stringified rows
   if (!segments) {
-    segments = await inference.transcribe(opts.videoUrl);
+    segments = opts.transcribeFn ? await opts.transcribeFn() : await inference.transcribe(opts.videoUrl);
     usage.llmCalls++;
     await sql`
       insert into transcript_cache (video_hash, transcript) values (${videoHash}, ${(sql as any).json(segments)})
