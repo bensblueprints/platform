@@ -39,13 +39,12 @@ function sanitizeJsonText(raw: string): string {
       out += ch;
       continue;
     }
-    if (inStr && ch === "
-") {
+    if (inStr && ch.charCodeAt(0) === 10) {
       out += "\n";
       continue;
     }
-    if (inStr && ch === "") continue;
-    if (inStr && ch === "	") {
+    if (inStr && ch.charCodeAt(0) === 13) continue;
+    if (inStr && ch.charCodeAt(0) === 9) {
       out += " ";
       continue;
     }
@@ -53,7 +52,6 @@ function sanitizeJsonText(raw: string): string {
   }
   return out;
 }
-
 /** Extract the first JSON object from model output (fences, prose, truncation). */
 function extractJson(raw: string): any {
   const cleaned = sanitizeJsonText(raw.replace(/```json|```/g, ""));
