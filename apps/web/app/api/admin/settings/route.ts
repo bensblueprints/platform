@@ -14,6 +14,10 @@ const KNOWN_KEYS = [
   "GHL_LOCATION_ID",
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
+  "RESEND_API_KEY",
+  "RESEND_FROM",
+  "YOUTUBE_COOKIES",
+  "PURCHASE_WEBHOOK_SECRET",
 ] as const;
 
 /** Masked view of integration settings (owner Settings page). */

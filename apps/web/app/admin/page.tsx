@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { getSharedDb } from "@platform/core";
 import { getSessionUser } from "../../lib/auth";
+import { DeleteWebinarButton } from "../../components/HubForms";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,7 @@ export default async function AdminHome() {
             <Link href={`/admin/live?webinar=${w.id}`} className="text-xs text-sky-300 hover:underline">
               console
             </Link>
+            <DeleteWebinarButton webinarId={w.id} title={w.title} />
           </div>
         ))}
       </div>

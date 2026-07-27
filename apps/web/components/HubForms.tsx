@@ -7,26 +7,91 @@ const btn = "rounded-lg bg-red-600 px-4 py-2 text-sm font-medium hover:bg-red-50
 
 export function VideoUpload({ webinarId, hasVideo, duration }: { webinarId: string; hasVideo: boolean; duration: number | null }) {
   const [state, setState] = useState<string | null>(null);
+  const [importUrl, setImportUrl] = useState("");
+  const [ytUrl, setYtUrl] = useState("");
 
   async function upload(file: File) {
-    setState("uploading…");
+    setState("uploading… (direct uploads cap at ~100MB through Cloudflare — for bigger files use Import from URL below)");
     const res = await fetch(`/api/admin/webinars/${webinarId}/video`, { method: "PUT", body: file });
     const body = await res.json().catch(() => ({}));
     setState(res.ok ? `uploaded (${Math.round((body.durationSeconds ?? 0) / 60)} min detected)` : `failed: ${body.error ?? res.status}`);
+  }
+
+  async function importYoutube() {
+    if (!ytUrl.trim()) return;
+    setState("queued — yt-dlp is downloading on the server (a minute for big files)…");
+    const res = await fetch(`/api/admin/webinars/${webinarId}/video-youtube`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: ytUrl.trim() }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setState(res.ok ? "queued — check back in a minute" : `failed: ${body.error ?? res.status}`);
+  }
+
+  async function importFromUrl() {
+    if (!importUrl.trim()) return;
+    setState("importing from URL — the server is downloading it, keep this tab open…");
+    const res = await fetch(`/api/admin/webinars/${webinarId}/video-url`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: importUrl.trim() }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setState(
+      res.ok
+        ? `imported (${Math.round((body.durationSeconds ?? 0) / 60)} min detected${body.bytes ? `, ${Math.round(body.bytes / 1e6)} MB` : ""})`
+        : `import failed: ${body.error ?? res.status}`,
+    );
   }
 
   return (
     <section className="rounded-lg bg-zinc-900 p-4">
       <h2 className="mb-2 font-medium">Video</h2>
       <p className="mb-3 text-sm text-zinc-400">
-        {hasVideo ? `Uploaded (${duration ? Math.round(duration / 60) : "?"} min). Replace any time:` : "No video yet. Upload your webinar recording (mp4):"}
+        {hasVideo ? `Uploaded (${duration ? Math.round(duration / 60) : "?"} min). Replace any time:` : "No video yet. Get it in one of two ways:"}
       </p>
-      <input
-        type="file"
-        accept="video/mp4"
-        onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])}
-        className="text-sm text-zinc-300 file:mr-3 file:rounded file:border-0 file:bg-red-600 file:px-3 file:py-1.5 file:text-white"
-      />
+      <div className="flex flex-col gap-3">
+        <div>
+          <p className="mb-1 text-xs font-medium text-zinc-500">1. Import from URL (recommended — any size, the server downloads it)</p>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              placeholder="https://…/your-webinar.mp4 (Drive, Dropbox, S3, Vimeo download…)"
+              value={importUrl}
+              onChange={(e) => setImportUrl(e.target.value)}
+              className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder-zinc-600"
+            />
+            <button onClick={importFromUrl} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium hover:bg-red-500">
+              Import
+            </button>
+          </div>
+        </div>
+        <div>
+          <p className="mb-1 text-xs font-medium text-zinc-500">2. YouTube (public/unlisted — downloads as your own mp4, no YouTube branding; private needs cookies in Settings)</p>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              placeholder="https://youtube.com/watch?v=… or https://youtu.be/…"
+              value={ytUrl}
+              onChange={(e) => setYtUrl(e.target.value)}
+              className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder-zinc-600"
+            />
+            <button onClick={importYoutube} className="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium hover:bg-zinc-600">
+              YouTube
+            </button>
+          </div>
+        </div>
+        <div>
+          <p className="mb-1 text-xs font-medium text-zinc-500">3. Direct upload (mp4 up to ~100MB — Cloudflare's proxied limit)</p>
+          <input
+            type="file"
+            accept="video/mp4"
+            onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])}
+            className="text-sm text-zinc-300 file:mr-3 file:rounded file:border-0 file:bg-zinc-700 file:px-3 file:py-1.5 file:text-white"
+          />
+        </div>
+      </div>
       {state && <p className="mt-2 text-sm text-zinc-400">{state}</p>}
     </section>
   );
@@ -190,6 +255,68 @@ export function ImportChatForm({ webinarId }: { webinarId: string }) {
         </button>
       </div>
       {result && <p className="mt-2 text-sm text-zinc-400">{result}</p>}
+    </section>
+  );
+}
+
+export function AudienceSizeForm({ webinarId, initial }: { webinarId: string; initial: number }) {
+  const [size, setSize] = useState(initial);
+  const [state, setState] = useState<string | null>(null);
+
+  async function save() {
+    setState("saving…");
+    const res = await fetch(`/api/admin/webinars/${webinarId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chatAudienceSize: size }),
+    });
+    setState(res.ok ? "saved — the generator sizes chat volume and the roster to this" : "failed");
+  }
+
+  return (
+    <section className="rounded-lg bg-zinc-900 p-4">
+      <h2 className="mb-2 font-medium">Chat audience size</h2>
+      <p className="mb-2 text-xs text-zinc-500">
+        How many people the room feels like. The generator scales line density and the persona roster to this number.
+      </p>
+      <div className="flex items-center gap-3">
+        <input
+          type="number"
+          min={10}
+          max={5000}
+          value={size}
+          onChange={(e) => setSize(Number(e.target.value))}
+          className="w-28 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
+        />
+        <button onClick={save} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium hover:bg-red-500">
+          Save
+        </button>
+        {state && <span className="text-sm text-zinc-400">{state}</span>}
+      </div>
+    </section>
+  );
+}
+
+export function DeleteWebinarButton({ webinarId, title }: { webinarId: string; title: string }) {
+  const [state, setState] = useState<string | null>(null);
+
+  async function del() {
+    if (!window.confirm(`Delete "${title}" and everything attached to it (registrants, sessions, chat, offers, analytics)? This cannot be undone.`)) return;
+    setState("deleting…");
+    const res = await fetch(`/api/admin/webinars/${webinarId}`, { method: "DELETE" });
+    if (res.ok) {
+      window.location.href = "/admin";
+    } else {
+      setState("delete failed");
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-red-900/50 bg-red-950/20 p-4">
+      <button onClick={del} className="text-sm font-medium text-red-300 hover:text-red-200">
+        Delete this webinar
+      </button>
+      {state && <span className="ml-3 text-sm text-red-300">{state}</span>}
     </section>
   );
 }

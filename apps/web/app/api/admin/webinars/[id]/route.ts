@@ -1,5 +1,7 @@
-import { getSharedDb } from "@platform/core";
+import { unlinkSync, existsSync } from "node:fs";
 import { isAdminAuthorized } from "../../../../../lib/auth";
+import { getSharedDb } from "@platform/core";
+import { videoPath } from "../../../../../lib/video-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -29,10 +31,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       show_attendee_count = coalesce(${body.showAttendeeCount ?? null}, show_attendee_count),
       allow_real_chat = coalesce(${body.allowRealChat ?? null}, allow_real_chat),
       chat_variance_pct = coalesce(${body.chatVariancePct ?? null}, chat_variance_pct),
-      chat_jitter_seconds = coalesce(${body.chatJitterSeconds ?? null}, chat_jitter_seconds)
+      chat_jitter_seconds = coalesce(${body.chatJitterSeconds ?? null}, chat_jitter_seconds),
+      chat_audience_size = coalesce(${body.chatAudienceSize ?? null}, chat_audience_size)
     where id = ${id}::uuid
     returning id
   `;
   if (updated.length === 0) return Response.json({ error: "not_found" }, { status: 404 });
   return Response.json({ updated: true });
+}
+
+/** Delete a webinar and everything attached (FK cascades) plus the video file. */
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await isAdminAuthorized(req))) {
+    return Response.json({ error: "not_found" }, { status: 404 });
+  }
+  const { id } = await params;
+
+  const deleted = await sql`
+    delete from webinars where id = ${id}::uuid returning id, slug
+  `;
+  if (deleted.length === 0) return Response.json({ error: "not_found" }, { status: 404 });
+
+  try {
+    if (existsSync(videoPath(id))) unlinkSync(videoPath(id));
+  } catch {
+    // file cleanup is best-effort; the row is already gone
+  }
+  return Response.json({ deleted: true, slug: deleted[0].slug });
 }

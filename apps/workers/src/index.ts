@@ -1,5 +1,9 @@
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { writeFileSync, unlinkSync } from "node:fs";
+import { mp4DurationSeconds } from "./video-storage.js";
 import { cleanupDeadSessions, createDb, getSetting, materializeRecurringSessions } from "@platform/core";
 import { activeAdapters, resolvePostSessionKind, type NotificationPayload } from "@platform/notifications";
 import { createInferenceFromSettings, runGenerationPipeline } from "@platform/chat";
@@ -33,10 +37,48 @@ const worker = new Worker(
     } else if (job.name === "cleanup-sessions") {
       const res = await cleanupDeadSessions(sql);
       console.log(`[cleanup] deleted=${res.deleted}`);
+    } else if (job.name === "youtube-import") {
+      const { webinarId, url } = job.data as { webinarId: string; url: string };
+      await importYoutube(sql, webinarId, url);
+      console.log(`[youtube] imported ${webinarId}`);
     }
   },
   { connection },
 );
+
+const execFileP = promisify(execFile);
+
+/** yt-dlp a YouTube video into the shared video volume, then wire the webinar. */
+async function importYoutube(sql: ReturnType<typeof createDb>, webinarId: string, url: string) {
+  const out = `/data/videos/${webinarId}.mp4`;
+  const rows = await sql<{ value: string }[]>`
+    select value from app_settings where key = 'YOUTUBE_COOKIES' limit 1
+  `;
+  const cookies = rows[0]?.value;
+  const args = [
+    "-f", "best[ext=mp4][height<=720]/best[ext=mp4]/best",
+    "--no-playlist",
+    "-o", out,
+  ];
+  let cookiePath: string | null = null;
+  if (cookies) {
+    cookiePath = `/tmp/yt-cookies-${webinarId}.txt`;
+    writeFileSync(cookiePath, cookies);
+    args.push("--cookies", cookiePath);
+  }
+  args.push(url);
+  try {
+    await execFileP("yt-dlp", args, { timeout: 20 * 60_000, maxBuffer: 8 * 1024 * 1024 });
+  } finally {
+    if (cookiePath) unlinkSync(cookiePath);
+  }
+  const duration = mp4DurationSeconds(out);
+  await sql`
+    update webinars set video_url = ${"/api/media/" + webinarId}
+    ${duration ? sql`, duration_seconds = ${duration}` : sql``}
+    where id = ${webinarId}
+  `;
+}
 
 worker.on("failed", (job, err) => console.error(`[worker] job ${job?.name} failed:`, err.message));
 
@@ -76,7 +118,7 @@ const genWorker = new Worker(
     await genSql`update generation_jobs set status = 'running', stage = 'transcribe', updated_at = now() where id = ${jobId}`;
     try {
       const ws = await genSql<any[]>`
-        select id, video_url, duration_seconds from webinars where id = ${webinarId}::uuid limit 1
+        select id, video_url, duration_seconds, chat_audience_size from webinars where id = ${webinarId}::uuid limit 1
       `;
       const w = ws[0];
       if (!w?.video_url) throw new Error("webinar has no video_url");
@@ -157,6 +199,7 @@ const genWorker = new Worker(
         videoUrl: w.video_url,
         durationSeconds: w.duration_seconds,
         useMockBeats: mockBeats,
+        audienceSize: w.chat_audience_size ?? 240,
       });
 
       if (result.failures.length > 0) {

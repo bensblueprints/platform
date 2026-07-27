@@ -29,11 +29,33 @@ const SECTIONS: { title: string; note: string; keys: { key: string; label: strin
     ],
   },
   {
+    title: "Resend (reminder emails)",
+    note: "Emails from resend.com. Confirm + reminders (24h/1h/10m) and attended/no-show follow-ups are sent automatically.",
+    keys: [
+      { key: "RESEND_API_KEY", label: "API key", placeholder: "re_…" },
+      { key: "RESEND_FROM", label: "From address", placeholder: "Webinars <live@yourdomain.com>" },
+    ],
+  },
+  {
     title: "Stripe (direct checkout — optional)",
     note: "Leave blank and use offer Button URLs for now. Fill these to enable native Stripe Checkout.",
     keys: [
       { key: "STRIPE_SECRET_KEY", label: "Secret key", placeholder: "sk_test_… / sk_live_…" },
       { key: "STRIPE_WEBHOOK_SECRET", label: "Webhook signing secret", placeholder: "whsec_…" },
+    ],
+  },
+  {
+    title: "Purchase bridge (Viral Invoice / external checkouts)",
+    note: "Set a secret, then point Viral Invoice (or a GHL flow/Zapier) at /api/offers/<offerId>/purchase with { secret, amountCents, externalRef } — each payment increments the price ladder, idempotent by externalRef.",
+    keys: [
+      { key: "PURCHASE_WEBHOOK_SECRET", label: "Shared secret", placeholder: "any long random string" },
+    ],
+  },
+  {
+    title: "YouTube (private videos)",
+    note: "Only needed for PRIVATE YouTube videos: paste your browser's YouTube cookies (Netscape cookie file from an exporter). Unlisted videos need nothing.",
+    keys: [
+      { key: "YOUTUBE_COOKIES", label: "YouTube cookies (Netscape format)", placeholder: "# Netscape HTTP Cookie File…" },
     ],
   },
 ];

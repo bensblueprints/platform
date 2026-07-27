@@ -91,8 +91,9 @@ async function generateBeatLines(
   priorLines: GenLine[],
   rng: () => number,
   usage: PersonaUsage,
+  densityScale = 1,
 ): Promise<GenLine[]> {
-  const target = targetLineCount(beat);
+  const target = Math.max(1, Math.round(targetLineCount(beat) * densityScale));
   const eligible = roster.filter((p) => p.arc.arriveOffset <= beat.end);
   const pool = eligible.length > 0 ? eligible : roster;
   const rosterSummary = pool
@@ -225,6 +226,8 @@ export async function runGenerationPipeline(
     onlyBeatType?: BeatType;
     existingLines?: GenLine[];
     existingRoster?: Persona[];
+    /** Scales line density and roster size (webinars.chat_audience_size, default 240). */
+    audienceSize?: number;
   },
 ): Promise<GenerationResult> {
   const usage = { beats: 0, llmCalls: 0, transcriptHash: "" };
@@ -280,8 +283,11 @@ export async function runGenerationPipeline(
     `;
   }
 
-  // 3. roster
-  const roster = opts.existingRoster ?? generateRoster(mulberry32(parseInt(sha256(opts.webinarId).slice(0, 8), 16)), 30);
+  // 3. roster (sized to the audience knob: ~1 persona per 8 attendees, 20-60)
+  const audience = Math.max(10, opts.audienceSize ?? 240);
+  const densityScale = Math.min(4, Math.max(0.25, audience / 240));
+  const rosterSize = Math.min(60, Math.max(20, Math.round(audience / 8)));
+  const roster = opts.existingRoster ?? generateRoster(mulberry32(parseInt(sha256(opts.webinarId).slice(0, 8), 16)), rosterSize);
   usage.beats = beats.length;
 
   // 4-5. per-beat generation + merge
@@ -307,7 +313,7 @@ export async function runGenerationPipeline(
     personaUsage.counts.set(l.persona, (personaUsage.counts.get(l.persona) ?? 0) + 1);
   }
   for (const beat of targetBeats) {
-    const beatLines = await generateBeatLines(inference, beat, roster, generated, rng, personaUsage);
+    const beatLines = await generateBeatLines(inference, beat, roster, generated, rng, personaUsage, densityScale);
     usage.llmCalls++;
     generated.push(...beatLines);
   }
@@ -324,7 +330,7 @@ export async function runGenerationPipeline(
       .map((b) => ({ b, gap: targetLineCount(b) - organicCount(lines.filter((l) => l.beat === b.type)) }))
       .sort((x, y) => y.gap - x.gap)[0]?.b;
     if (sparsest) {
-      const more = await generateBeatLines(inference, sparsest, roster, lines, rng, personaUsage);
+      const more = await generateBeatLines(inference, sparsest, roster, lines, rng, personaUsage, densityScale);
       usage.llmCalls++;
       lines = ensurePairing(mergeLines(rng, [[...lines, ...more]]), rng);
     }
@@ -338,7 +344,7 @@ export async function runGenerationPipeline(
       const beat = targetBeats.find((b) => b.type === bt);
       if (!beat) continue;
       const without = lines.filter((l) => l.beat !== bt);
-      const regen = await generateBeatLines(inference, beat, roster, without, rng, personaUsage);
+      const regen = await generateBeatLines(inference, beat, roster, without, rng, personaUsage, densityScale);
       usage.llmCalls++;
       lines = ensurePairing(mergeLines(rng, [[...without, ...regen]]), rng);
     }

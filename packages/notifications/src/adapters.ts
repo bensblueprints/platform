@@ -55,9 +55,12 @@ export const ghlAdapter: NotificationAdapter = {
   },
 };
 
+import { resendAdapter } from "./resend";
+
 export function activeAdapters(): NotificationAdapter[] {
   const adapters: NotificationAdapter[] = [logAdapter];
-  // ghlAdapter self-activates when keys exist (settings store or env)
+  // ghl + resend self-activate when their keys exist (settings store or env)
   adapters.push(ghlAdapter);
+  adapters.push(resendAdapter);
   return adapters;
 }

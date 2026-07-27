@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSharedDb } from "@platform/core";
-import { CurveForm, ImportChatForm, OfferForm, RosterForm, VideoUpload } from "../../../../components/HubForms";
+import { AudienceSizeForm, CurveForm, DeleteWebinarButton, ImportChatForm, OfferForm, RosterForm, VideoUpload } from "../../../../components/HubForms";
 
 export const dynamic = "force-dynamic";
 
@@ -75,8 +75,10 @@ export default async function WebinarHub({ params }: { params: Promise<{ id: str
       <OfferForm webinarId={w.id} />
 
       <ImportChatForm webinarId={w.id} />
+      <AudienceSizeForm webinarId={w.id} initial={w.chat_audience_size ?? 240} />
       <RosterForm webinarId={w.id} initial={roster.map((r: any) => r.display_name)} />
       <CurveForm webinarId={w.id} initial={curveInitial} />
+      <DeleteWebinarButton webinarId={w.id} title={w.title} />
     </main>
   );
 }

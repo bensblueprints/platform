@@ -1,2 +1,3 @@
 export * from "./schedule-notifications";
 export * from "./adapters";
+export * from "./resend";
