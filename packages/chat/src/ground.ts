@@ -40,7 +40,7 @@ const SENTIMENT_FILLER = new Set([
   "here", "there", "thing", "things", "stuff", "something", "anything", "everything",
   "everyone", "everybody", "guys", "people", "folks", "man", "bro", "dude",
   "watching", "listening", "looking", "forward", "cant", "cant", "cannot", "wait",
-  "ready", "hyped", "pumped", "stoked", "glad", "happy", "sure", "okay", "ok",
+  "ready", "hyped", "pumped", "stoked", "glad", "happy", "sure", "okay", "ok", "continue", "keep", "going", "support", "team", "dev", "feedback", "expect", "expected", "expecting", "projects", "project", "similar", "compare", "other", "others", "question", "answer", "answers", "ask", "asked", "asking", "know", "knew", "think", "thinking", "thought", "mean", "meant", "see", "saw", "hear", "heard", "get", "gets", "got", "getting", "work", "works", "working", "process", "use", "used", "using", "make", "makes", "making", "need", "needs", "help", "helps", "explain", "understand", "understanding", "repeat", "clarify", "clear", "include", "included", "including", "increase", "increasing", "regular", "updates", "update", "features", "feature", "invoices",
   "omg", "oh", "wow", "woah", "ay", "ayyy", "yess", "yessir", "lets", "let",
   "go", "goo", "gogo", "come", "cmon", "please", "plz", "pls", "appreciate",
   "much", "needed", "need", "wanted", "want", "like", "likes", "dis",

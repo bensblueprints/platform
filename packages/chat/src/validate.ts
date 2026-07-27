@@ -104,12 +104,28 @@ export function validateScript(
   // everything said UP TO the line's offset — attendees naturally reference
   // earlier content ("the app from before"), which is fine and real.
   const sortedBeats = [...beats].sort((a, b) => a.start - b.start);
-  for (const l of lines) {
-    if (l.hand) continue; // human override: not generated, not re-judged
-    const transcript = sortedBeats
-      .filter((b) => b.start <= l.offsetSeconds)
+  const priorTranscript = (offset: number) =>
+    sortedBeats
+      .filter((b) => b.start <= offset)
       .map((b) => b.transcript)
       .join(" ");
+  for (const l of lines) {
+    if (l.hand) continue; // human override: not generated, not re-judged
+    const transcript = priorTranscript(l.offsetSeconds);
+    if (l.mode === "question") {
+      // generic questions are natural chat; only invented specifics count as
+      // hallucination: numbers the presenter never said, or capitalized names
+      // that don't appear in the transcript
+      const saidWords = new Set(transcript.match(/[A-Za-z]{3,}/g) ?? []);
+      const inventedNumber = /\d/.test(l.text) && !grounded(l.text, transcript);
+      const inventedName = (l.text.match(/\b[A-Z][a-z]{3,}\b/g) ?? []).some(
+        (t) => !saidWords.has(t) && l.text.indexOf(t) > 0,
+      );
+      if (inventedNumber || inventedName) {
+        failures.push({ rule: "grounding", detail: `ungounded question: "${l.text.slice(0, 60)}"`, beat: l.beat });
+      }
+      continue;
+    }
     if (!grounded(l.text, transcript)) {
       failures.push({ rule: "grounding", detail: `ungounded line: "${l.text.slice(0, 60)}"`, beat: l.beat });
     }
