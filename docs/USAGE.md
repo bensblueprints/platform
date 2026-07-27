@@ -50,7 +50,17 @@ Legacy fallback domain `https://webinar-platform.212.28.184.24.sslip.io` serves 
   - **Recurring:** fixed weekdays + times in a named timezone (e.g. Mon/Wed/Fri 10:00 America/Chicago). A background worker materializes sessions 14 days ahead automatically.
   - **On-demand:** the session starts the moment the viewer joins.
 
-## 4. Upload the video
+## 4. Get the video in
+
+Three options on the manage page:
+
+- **Import from URL (recommended):** paste any direct mp4 link (Drive, Dropbox, S3, Vimeo download). The server downloads it — no size limit.
+- **YouTube:** paste a public or unlisted YouTube URL — it's downloaded as your own mp4 and plays in our player with no YouTube branding. PRIVATE videos need your YouTube cookies in `/admin/settings` → YouTube.
+- **Direct upload:** mp4 up to ~100MB (Cloudflare caps proxied uploads there — that's why a 1GB file fails; use Import from URL instead).
+
+Duration is detected automatically; the file persists on the server across redeploys.
+
+## 4b. Upload the video
 
 On the webinar's manage page (`/admin/webinars/[id]`):
 
@@ -79,6 +89,19 @@ Manage page → **New offer**:
 - **Price ladder (optional):** start price, +increment per sale, cap. The room shows the current price and the honest "goes to $X after this sale".
 - **Urgency:** per-viewer countdown that starts when *they* first see the offer (survives refresh).
 - **Scarcity:** "N left" from inventory minus sales.
+
+## 6b. Reminder emails (Resend)
+
+`/admin/settings` → Resend: add your `RESEND_API_KEY` and `RESEND_FROM` (e.g. `Webinars <live@yourdomain.com>`). Confirm, 24h/1h/10m reminders, and attended/no-show follow-ups then send automatically via resend.com — no SMTP needed.
+
+## 6c. Counting sales from Viral Invoice (or any external checkout)
+
+The price ladder only rises on real sales. Point the offer's Button URL at your Viral Invoice checkout, then bridge the payment back:
+
+1. `/admin/settings` → Purchase bridge: set a shared secret.
+2. In Viral Invoice (or a GHL flow/Zapier), on payment success call:
+   `POST /api/offers/<offerId>/purchase` with `{ "secret": "…", "amountCents": 10000, "externalRef": "<invoice id>" }`.
+3. The ladder increments exactly once per `externalRef` (idempotent), and the new price pushes live into every open room.
 
 ## 7. Publish and promote
 
@@ -115,6 +138,12 @@ Manage page → **New offer**:
 - **No simulated purchase toasts.** Sale notifications only ever come from real payment webhooks (when Stripe is wired). There is no fake-sale mode, deliberately.
 - **The generator refuses to write earnings/results claims into attendee lines** (FTC 16 CFR Part 465 — fake testimonials carry civil penalties). Atmospheric chat, questions, and logistics only. Import lint warns on the same patterns.
 - Player hardening is friction, not DRM — the schedule being server-driven is the real protection.
+
+## 11b. Housekeeping
+
+- **Delete a webinar** from its manage page (bottom) or the dashboard row — removes registrants, sessions, chat, offers, and the video file. Irreversible.
+- **Chat audience size** (manage page) scales how busy the seeded chat feels and how big the persona roster is.
+- **Owner vault:** `onetimesuite.com/documentation` — all links and credentials behind your vault password.
 
 ## 12. Testing endpoints (dev only)
 
