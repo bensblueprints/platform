@@ -17,9 +17,46 @@ const ADMIN_PERSONA = "Sarah (Support)";
  * node:crypto was avoided deliberately: this package also ships to the
  * browser bundle, where node: schemes don't build.
  */
+/** Escape literal control chars inside JSON string values (models emit
+ * raw newlines/tabs inside "text" fields, which is invalid JSON). */
+function sanitizeJsonText(raw: string): string {
+  let out = "";
+  let inStr = false;
+  let escape = false;
+  for (const ch of raw) {
+    if (escape) {
+      escape = false;
+      out += ch;
+      continue;
+    }
+    if (ch === "\\") {
+      escape = true;
+      out += ch;
+      continue;
+    }
+    if (ch === '"') {
+      inStr = !inStr;
+      out += ch;
+      continue;
+    }
+    if (inStr && ch === "
+") {
+      out += "\n";
+      continue;
+    }
+    if (inStr && ch === "") continue;
+    if (inStr && ch === "	") {
+      out += " ";
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
 /** Extract the first JSON object from model output (fences, prose, truncation). */
 function extractJson(raw: string): any {
-  const cleaned = raw.replace(/```json|```/g, "");
+  const cleaned = sanitizeJsonText(raw.replace(/```json|```/g, ""));
   const start = cleaned.indexOf("{");
   if (start === -1) throw new Error("no JSON object in model output");
   // try the full span first
