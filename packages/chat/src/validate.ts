@@ -100,12 +100,16 @@ export function validateScript(
     }
   }
 
-  // grounding: no references to things the presenter never said
-  const beatByType = new Map(beats.map((b) => [b.type, b]));
+  // grounding: no references to things the presenter never said. Scope is
+  // everything said UP TO the line's offset — attendees naturally reference
+  // earlier content ("the app from before"), which is fine and real.
+  const sortedBeats = [...beats].sort((a, b) => a.start - b.start);
   for (const l of lines) {
     if (l.hand) continue; // human override: not generated, not re-judged
-    const beat = beatByType.get(l.beat);
-    const transcript = beat?.transcript ?? beats.map((b) => b.transcript).join(" ");
+    const transcript = sortedBeats
+      .filter((b) => b.start <= l.offsetSeconds)
+      .map((b) => b.transcript)
+      .join(" ");
     if (!grounded(l.text, transcript)) {
       failures.push({ rule: "grounding", detail: `ungounded line: "${l.text.slice(0, 60)}"`, beat: l.beat });
     }

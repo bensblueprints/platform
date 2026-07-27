@@ -223,6 +223,34 @@ const ANSWER_TEMPLATES = [
 ];
 
 /** §7.4 pairing, enforced globally after merge so regen scopes can't strand questions. */
+/** Repair persona spacing post-merge: reassign lines violating the 45s
+ * rule to a free persona at that offset (drop only if nobody is free). */
+function repairPersonaSpacing(lines: GenLine[], roster: Persona[], rng: () => number): GenLine[] {
+  const lastUsed = new Map<string, number>();
+  const counts = new Map<string, number>();
+  return lines.map((l) => {
+    if (l.role === "admin") {
+      lastUsed.set(l.persona, l.offsetSeconds);
+      return l;
+    }
+    const last = lastUsed.get(l.persona);
+    if (last === undefined || l.offsetSeconds - last >= 45) {
+      lastUsed.set(l.persona, l.offsetSeconds);
+      counts.set(l.persona, (counts.get(l.persona) ?? 0) + 1);
+      return l;
+    }
+    // violating — find a free persona at this offset
+    const free = roster
+      .filter((p) => (lastUsed.get(p.name) ?? -Infinity) <= l.offsetSeconds - 45)
+      .sort((a, b) => (counts.get(a.name) ?? 0) - (counts.get(b.name) ?? 0))[0];
+    if (!free) return l; // nobody free: keep as-is (validator will flag honestly)
+    const renamed = { ...l, persona: free.name };
+    lastUsed.set(free.name, l.offsetSeconds);
+    counts.set(free.name, (counts.get(free.name) ?? 0) + 1);
+    return renamed;
+  });
+}
+
 function ensurePairing(lines: GenLine[], rng: () => number): GenLine[] {
   const out = [...lines];
   let idx = 0;
@@ -423,7 +451,7 @@ export async function runGenerationPipeline(
     usage.llmCalls++;
     generated.push(...beatLines);
   }
-  let lines = ensurePairing(mergeLines(rng, [generated]), rng);
+  let lines = repairPersonaSpacing(ensurePairing(mergeLines(rng, [generated]), rng), roster, rng);
 
   // Top-up: if organic volume is below the density band's floor, generate
   // once more for the sparsest beat before validating (§7.4). Persona
@@ -439,6 +467,7 @@ export async function runGenerationPipeline(
       const more = await generateBeatLines(inference, sparsest, roster, lines, rng, personaUsage, densityScale);
       usage.llmCalls++;
       lines = ensurePairing(mergeLines(rng, [[...lines, ...more]]), rng);
+      lines = repairPersonaSpacing(lines, roster, rng);
     }
   }
 
