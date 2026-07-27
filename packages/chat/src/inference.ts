@@ -70,6 +70,7 @@ export function createOpenAiClient(opts: {
             model: chatModel,
             messages,
             temperature: 0.9,
+            max_tokens: 4096,
             ...(genOpts?.json ? { response_format: { type: "json_object" } } : {}),
           }),
         });

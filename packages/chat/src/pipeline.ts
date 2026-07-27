@@ -17,13 +17,39 @@ const ADMIN_PERSONA = "Sarah (Support)";
  * node:crypto was avoided deliberately: this package also ships to the
  * browser bundle, where node: schemes don't build.
  */
-/** Extract the first JSON object from model output (fences, prose, etc.). */
+/** Extract the first JSON object from model output (fences, prose, truncation). */
 function extractJson(raw: string): any {
   const cleaned = raw.replace(/```json|```/g, "");
   const start = cleaned.indexOf("{");
+  if (start === -1) throw new Error("no JSON object in model output");
+  // try the full span first
   const end = cleaned.lastIndexOf("}");
-  if (start === -1 || end <= start) throw new Error("no JSON object in model output");
-  return JSON.parse(cleaned.slice(start, end + 1));
+  if (end > start) {
+    try {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    } catch {
+      // fall through to balanced-prefix parse (model truncated with junk after)
+    }
+  }
+  // walk forward from the first { tracking depth; stop at the first balanced close
+  let depth = 0;
+  let inStr = false;
+  let escape = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === "{") depth++;
+    if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        return JSON.parse(cleaned.slice(start, i + 1));
+      }
+    }
+  }
+  throw new Error("no balanced JSON object in model output");
 }
 
 function sha256(s: string): string {
@@ -105,31 +131,39 @@ async function generateBeatLines(
   const eligible = roster.filter((p) => p.arc.arriveOffset <= beat.end);
   const pool = eligible.length > 0 ? eligible : roster;
   const rosterSummary = pool
+    .slice(0, 30)
     .map((p) => `${p.name} (${p.archetype}, ${p.style.caps === "lower" ? "lowercase typer" : p.style.caps === "shout" ? "caps-lock energy" : "normal case"}${p.style.emoji ? ", uses emoji" : ""})`)
     .join("; ");
   const continuity = priorLines.slice(-8).map((l) => `${l.persona}: ${l.text}`).join("\n");
 
-  const raw = await inference.generate(
-    [
-      {
-        role: "system",
-        content:
-          "You write realistic live-chat lines for a webinar audience, keyed to what the presenter actually says. Return JSON only: {\"lines\":[{ \"name\": \"<persona name or {{persona}}>\", \"mode\": \"chat|question\", \"text\": \"...\" }]}. Never write earnings, income, or results claims. Never reference content not in the transcript slice. Attendees ask logistics questions and react to specific moments.",
-      },
-      {
-        role: "user",
-        content:
-          `Beat type: ${beat.type} (${DENSITY[beat.type].character}).\n` +
-          `Write exactly ${target} lines for this beat.\n` +
-          `Transcript slice the audience is hearing:\n"""\n${beat.transcript}\n"""\n` +
-          `Roster (use these people): ${rosterSummary}\n` +
-          (continuity ? `Recent chat for continuity:\n${continuity}\n` : "") +
-          `At least one question referencing something specific in the slice. Use {{persona}} as the name for exactly one third of the lines (roster substitution happens later).`,
-      },
-    ],
-  );
+  const buildMessages = () => [
+    {
+      role: "system" as const,
+      content:
+        "You write realistic live-chat lines for a webinar audience, keyed to what the presenter actually says. Return JSON only: {\"lines\":[{ \"name\": \"<persona name or {{persona}}>\", \"mode\": \"chat|question\", \"text\": \"...\" }]}. Never write earnings, income, or results claims. Never reference content not in the transcript slice. Attendees ask logistics questions and react to specific moments.",
+    },
+    {
+      role: "user" as const,
+      content:
+        `Beat type: ${beat.type} (${DENSITY[beat.type].character}).\n` +
+        `Write exactly ${target} lines for this beat.\n` +
+        `Transcript slice the audience is hearing:\n"""\n${beat.transcript}\n"""\n` +
+        `Roster (use these people): ${rosterSummary}\n` +
+        (continuity ? `Recent chat for continuity:\n${continuity}\n` : "") +
+        `At least one question referencing something specific in the slice. Use {{persona}} as the name for exactly one third of the lines (roster substitution happens later).`,
+    },
+  ];
 
-  const parsed = parseGeneratedLines(raw);
+  // one retry on malformed model output (small models occasionally truncate)
+  let raw: string;
+  let parsed: { name: string; mode: string; text: string }[];
+  try {
+    raw = await inference.generate(buildMessages());
+    parsed = parseGeneratedLines(raw);
+  } catch {
+    raw = await inference.generate(buildMessages());
+    parsed = parseGeneratedLines(raw);
+  }
   const offsets = burstOffsets(rng, parsed.length, beat.start + 3, Math.max(beat.start + 10, beat.end - 3));
   const anchors = contentWords(beat.transcript);
 
