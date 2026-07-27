@@ -309,13 +309,19 @@ export async function runGenerationPipeline(
     if (opts.useMockBeats) {
       beats = heuristicBeats(segments);
     } else {
+      // condense the transcript for classification: the classifier needs
+      // the gist, not every word (small models have tiny TPM ceilings)
+      const perSeg = Math.max(60, Math.floor((5400 * 4) / Math.max(1, segments.length)));
+      const condensed = segments
+        .map((s) => `[${Math.floor(s.start)}s] ${s.text.length > perSeg ? s.text.slice(0, perSeg) + "…" : s.text}`)
+        .join("\n");
       const raw = await inference.generate([
         {
           role: "system",
           content:
             'Classify this webinar transcript into beats. Return JSON only: {"beats":[{"type":"arrival|intro|credibility|teaching|story|transition|pitch|offer|objection_handling|close|qa","start":<seconds>,"end":<seconds>}]}. Return at most 10 beats total; do not fragment short moments into separate beats. Cover the whole timeline contiguously.',
         },
-        { role: "user", content: segments.map((s) => `[${Math.floor(s.start)}s] ${s.text}`).join("\n") },
+        { role: "user", content: condensed },
       ], { json: true });
       usage.llmCalls++;
       const classified = JSON.parse(raw.replace(/```json|```/g, "")) as { beats: { type: BeatType; start: number; end: number }[] };
