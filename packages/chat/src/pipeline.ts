@@ -159,9 +159,11 @@ async function generateBeatLines(
   async function generateChunk(count: number): Promise<{ name: string; mode: string; text: string }[]> {
     const messages = buildMessages(count);
     let raw = "";
-    for (let attempt = 0; attempt < 3; attempt++) {
+    // alternate modes: plain output first (json_object mode 400s under load),
+    // json_object as the parse-guarantee fallback
+    for (let attempt = 0; attempt < 4; attempt++) {
       try {
-        raw = await inference.generate(messages, { json: true });
+        raw = await inference.generate(messages, attempt % 2 === 1 ? { json: true } : undefined);
         return parseGeneratedLines(raw);
       } catch (err) {
         console.error(`[beat ${beat.type}] chunk attempt ${attempt + 1} failed:`, String(err).slice(0, 100));
