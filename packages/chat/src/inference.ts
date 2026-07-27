@@ -78,7 +78,8 @@ export function createOpenAiClient(opts: {
           const json = (await res.json()) as { choices: { message: { content: string } }[] };
           return json.choices[0].message.content;
         }
-        if (res.status === 429 && attempt < 4) {
+        if (res.status !== 401 && res.status !== 403 && attempt < 4) {
+          // transient: rate limits, provider flaps (openrouter 404s), 5xx, json-mode 400s
           const retryAfter = Number(res.headers.get("retry-after") ?? 0);
           const waitMs = Math.max(retryAfter * 1000, 2000 * 2 ** attempt);
           await new Promise((r) => setTimeout(r, Math.min(waitMs, 60_000)));
