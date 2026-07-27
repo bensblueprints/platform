@@ -320,10 +320,6 @@ export async function runGenerationPipeline(
         transcript: segments.filter((s) => s.start < b.end && s.end > b.start).map((s) => s.text).join(" "),
       }));
     }
-    await sql`
-      insert into beat_cache (transcript_hash, beats) values (${transcriptHash}, ${(sql as any).json(beats)})
-      on conflict (transcript_hash) do nothing
-    `;
   }
 
   // normalize classifier output to the DENSITY enum (LLMs improvise labels)
@@ -343,6 +339,13 @@ export async function runGenerationPipeline(
       return { ...b, type };
     })
     .filter((b) => b.end > b.start);
+
+  if (!opts.useMockBeats) {
+    await sql`
+      insert into beat_cache (transcript_hash, beats) values (${transcriptHash}, ${(sql as any).json(beats)})
+      on conflict (transcript_hash) do nothing
+    `;
+  }
 
   // 3. roster (sized to the audience knob: ~1 persona per 8 attendees, 20-60)
   const audience = Math.max(10, opts.audienceSize ?? 240);
