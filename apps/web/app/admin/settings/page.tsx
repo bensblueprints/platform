@@ -34,6 +34,7 @@ const SECTIONS: { title: string; note: string; keys: { key: string; label: strin
     keys: [
       { key: "RESEND_API_KEY", label: "API key", placeholder: "re_…" },
       { key: "RESEND_FROM", label: "From address", placeholder: "Webinars <live@yourdomain.com>" },
+      { key: "PUBLIC_ORIGIN", label: "Site origin (for email links)", placeholder: "https://webinar-clone.onetimesuite.com" },
     ],
   },
   {

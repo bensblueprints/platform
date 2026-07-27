@@ -18,6 +18,7 @@ const KNOWN_KEYS = [
   "RESEND_FROM",
   "YOUTUBE_COOKIES",
   "PURCHASE_WEBHOOK_SECRET",
+  "PUBLIC_ORIGIN",
 ] as const;
 
 /** Masked view of integration settings (owner Settings page). */
