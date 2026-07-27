@@ -309,23 +309,41 @@ export async function runGenerationPipeline(
     if (opts.useMockBeats) {
       beats = heuristicBeats(segments);
     } else {
-      // condense the transcript for classification: the classifier needs
-      // the gist, not every word (small models have tiny TPM ceilings)
-      const perSeg = Math.max(40, Math.floor(11000 / Math.max(1, segments.length)));
-      const condensed = segments
-        .map((s) => `[${Math.floor(s.start)}s] ${s.text.length > perSeg ? s.text.slice(0, perSeg) + "…" : s.text}`)
-        .join("\n");
-      const raw = await inference.generate([
-        {
-          role: "system",
-          content:
-            'Classify this webinar transcript into beats. Return JSON only: {"beats":[{"type":"arrival|intro|credibility|teaching|story|transition|pitch|offer|objection_handling|close|qa","start":<seconds>,"end":<seconds>}]}. Return at most 10 beats total; do not fragment short moments into separate beats. Cover the whole timeline contiguously.',
-        },
-        { role: "user", content: condensed },
-      ], { json: true });
-      usage.llmCalls++;
-      const classified = JSON.parse(raw.replace(/```json|```/g, "")) as { beats: { type: BeatType; start: number; end: number }[] };
-      beats = classified.beats.map((b) => ({
+      // classify in two halves for longer transcripts — a single shot over
+      // the whole transcript busts small models' TPM ceilings, and char-based
+      // estimation of their tokenizer is unreliable (measured 2.4:1 and worse)
+      const classify = async (segs: { start: number; end: number; text: string }[], maxBeats: number) => {
+        const perSeg = Math.max(40, Math.floor(9000 / Math.max(1, segs.length)));
+        const condensed = segs
+          .map((s) => `[${Math.floor(s.start)}s] ${s.text.length > perSeg ? s.text.slice(0, perSeg) + "…" : s.text}`)
+          .join("\n");
+        const raw = await inference.generate([
+          {
+            role: "system",
+            content:
+              'Classify this webinar transcript into beats. Return JSON only: {"beats":[{"type":"arrival|intro|credibility|teaching|story|transition|pitch|offer|objection_handling|close|qa","start":<seconds>,"end":<seconds>}]}. Return at most MAXBEATS beats total; do not fragment short moments into separate beats. Cover the whole timeline contiguously.'.replace("MAXBEATS", String(maxBeats)),
+          },
+          { role: "user", content: condensed },
+        ], { json: true });
+        usage.llmCalls++;
+        const classified = extractJson(raw) as { beats: { type: BeatType; start: number; end: number }[] };
+        return classified.beats;
+      };
+
+      let rawBeats: { type: BeatType; start: number; end: number }[];
+      if (segments.length > 24) {
+        const mid = Math.floor(segments.length / 2);
+        const [a, b] = await Promise.all([
+          classify(segments.slice(0, mid), 6),
+          classify(segments.slice(mid), 6),
+        ]);
+        // reconcile the seam: drop any second-half beat starting before the first half's last beat ends
+        const lastA = [...a].sort((x, y) => x.end - y.end).pop()?.end ?? 0;
+        rawBeats = [...a, ...b.filter((x) => x.start >= lastA - 30)];
+      } else {
+        rawBeats = await classify(segments, 10);
+      }
+      beats = rawBeats.map((b) => ({
         type: b.type,
         start: b.start,
         end: b.end,
