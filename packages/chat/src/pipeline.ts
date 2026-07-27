@@ -285,8 +285,8 @@ export async function runGenerationPipeline(
 
   // 3. roster (sized to the audience knob: ~1 persona per 8 attendees, 20-60)
   const audience = Math.max(10, opts.audienceSize ?? 240);
-  const densityScale = Math.min(4, Math.max(0.25, audience / 240));
-  const rosterSize = Math.min(60, Math.max(20, Math.round(audience / 8)));
+  const densityScale = Math.min(6, Math.max(0.25, audience / 240));
+  const rosterSize = Math.min(120, Math.max(20, Math.round(audience / 40)));
   const roster = opts.existingRoster ?? generateRoster(mulberry32(parseInt(sha256(opts.webinarId).slice(0, 8), 16)), rosterSize);
   usage.beats = beats.length;
 
