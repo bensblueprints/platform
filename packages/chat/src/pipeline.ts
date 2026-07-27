@@ -126,6 +126,7 @@ async function generateBeatLines(
   rng: () => number,
   usage: PersonaUsage,
   densityScale = 1,
+  offerTerms?: string,
 ): Promise<GenLine[]> {
   const target = Math.max(1, Math.round(targetLineCount(beat) * densityScale));
   const eligible = roster.filter((p) => p.arc.arriveOffset <= beat.end);
@@ -466,6 +467,22 @@ export async function runGenerationPipeline(
       })
     : [];
 
+  // §7.1: logistics must reference the ACTUAL offer terms, not invented ones
+  const offerRows = await sql<any[]>`
+    select name, headline, button_text, price_start_cents, price_increment_cents, price_cap_cents
+    from offers where webinar_id = ${opts.webinarId} order by created_at asc limit 3
+  `;
+  const offerTerms = offerRows.length
+    ? offerRows
+        .map((o) => {
+          const price = o.price_start_cents != null ? `$${(o.price_start_cents / 100).toFixed(0)}` : "see checkout";
+          const ladder = o.price_increment_cents ? `, rising $${(o.price_increment_cents / 100).toFixed(0)} after every sale${o.price_cap_cents ? ` up to $${(o.price_cap_cents / 100).toFixed(0)}` : ""}` : "";
+          return `- "${o.name}" (${o.headline}) — price ${price}${ladder}. Button: "${o.button_text}".`;
+        })
+        .join("
+")
+    : undefined;
+
   const generated: GenLine[] = [...keptLines];
   const personaUsage: PersonaUsage = { lastUsed: new Map(), counts: new Map() };
   // seed spacing/counts from kept lines so regen respects the whole script
@@ -474,7 +491,10 @@ export async function runGenerationPipeline(
     personaUsage.counts.set(l.persona, (personaUsage.counts.get(l.persona) ?? 0) + 1);
   }
   for (const beat of targetBeats) {
-    const beatLines = await generateBeatLines(inference, beat, roster, generated, rng, personaUsage, densityScale);
+    const beatLines = await generateBeatLines(
+      inference, beat, roster, generated, rng, personaUsage, densityScale,
+      beat.type === "offer" || beat.type === "pitch" ? offerTerms : undefined,
+    );
     usage.llmCalls++;
     generated.push(...beatLines);
   }
@@ -507,7 +527,10 @@ export async function runGenerationPipeline(
       const beat = targetBeats.find((b) => b.type === bt);
       if (!beat) continue;
       const without = lines.filter((l) => l.beat !== bt);
-      const regen = await generateBeatLines(inference, beat, roster, without, rng, personaUsage, densityScale);
+      const regen = await generateBeatLines(
+        inference, beat, roster, without, rng, personaUsage, densityScale,
+        beat.type === "offer" || beat.type === "pitch" ? offerTerms : undefined,
+      );
       usage.llmCalls++;
       lines = ensurePairing(mergeLines(rng, [[...without, ...regen]]), rng);
     }
