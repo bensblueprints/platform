@@ -479,8 +479,7 @@ export async function runGenerationPipeline(
           const ladder = o.price_increment_cents ? `, rising $${(o.price_increment_cents / 100).toFixed(0)} after every sale${o.price_cap_cents ? ` up to $${(o.price_cap_cents / 100).toFixed(0)}` : ""}` : "";
           return `- "${o.name}" (${o.headline}) — price ${price}${ladder}. Button: "${o.button_text}".`;
         })
-        .join("
-")
+        .join("\n")
     : undefined;
 
   const generated: GenLine[] = [...keptLines];
