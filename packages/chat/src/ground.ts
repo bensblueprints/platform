@@ -25,8 +25,36 @@ export function overlapRatio(a: Set<string>, b: Set<string>): number {
 const ATMOSPHERIC =
   /(replay|audio|sound|hear(ing)?|link|slide|email|pdf|download|worksheet|late|join(ing)?|hello|hi from|hi,? everyone|mic|camera|freeze|frozen|where.?s the)/i;
 
+// content-free sentiment ("this is amazing!", "love it 🔥") — real chat is
+// full of these; they make no transcript claim so grounding can't fail them
+const HYPE = new Set([
+  "great", "amazing", "awesome", "love", "loved", "loving", "excited", "exciting",
+  "wow", "best", "good", "nice", "cool", "brilliant", "fantastic", "incredible",
+  "thanks", "thank", "thx", "yes", "yep", "yup", "nope", "lol", "haha", "lmao",
+  "fire", "lit", "huge", "big", "perfect", "exactly", "true", "truth", "facts",
+  "impressed", "impressive", "solid", "smart", "genius", "interesting", "hype",
+]);
+const SENTIMENT_FILLER = new Set([
+  "this", "that", "these", "those", "such", "really", "very", "super", "totally",
+  "absolutely", "definitely", "honestly", "literally", "actually", "just", "also",
+  "here", "there", "thing", "things", "stuff", "something", "anything", "everything",
+  "everyone", "everybody", "guys", "people", "folks", "man", "bro", "dude",
+  "watching", "listening", "looking", "forward", "cant", "cant", "cannot", "wait",
+  "ready", "hyped", "pumped", "stoked", "glad", "happy", "sure", "okay", "ok",
+  "omg", "oh", "wow", "woah", "ay", "ayyy", "yess", "yessir", "lets", "let",
+  "go", "goo", "gogo", "come", "cmon", "please", "plz", "pls", "appreciate",
+  "much", "needed", "need", "wanted", "want", "like", "likes", "dis",
+]);
+
 export function isAtmospheric(text: string): boolean {
-  return ATMOSPHERIC.test(text);
+  if (ATMOSPHERIC.test(text)) return true;
+  // sentiment-only: every content word is hype or filler (nothing referenced)
+  const words = contentWords(text);
+  if (words.size === 0) return true;
+  for (const w of words) {
+    if (!HYPE.has(w) && !SENTIMENT_FILLER.has(w)) return false;
+  }
+  return true;
 }
 
 /**

@@ -155,14 +155,20 @@ async function generateBeatLines(
   ];
 
   // one retry on malformed model output (small models occasionally truncate)
-  let raw: string;
+  let raw = "";
   let parsed: { name: string; mode: string; text: string }[];
   try {
     raw = await inference.generate(buildMessages());
     parsed = parseGeneratedLines(raw);
-  } catch {
+  } catch (err) {
+    console.error(`[beat ${beat.type}] attempt 1 failed:`, String(err).slice(0, 120), "| raw:", raw.slice(0, 400));
     raw = await inference.generate(buildMessages());
-    parsed = parseGeneratedLines(raw);
+    try {
+      parsed = parseGeneratedLines(raw);
+    } catch (err2) {
+      console.error(`[beat ${beat.type}] attempt 2 failed:`, String(err2).slice(0, 120), "| raw:", raw.slice(0, 400));
+      throw err2;
+    }
   }
   const offsets = burstOffsets(rng, parsed.length, beat.start + 3, Math.max(beat.start + 10, beat.end - 3));
   const anchors = contentWords(beat.transcript);

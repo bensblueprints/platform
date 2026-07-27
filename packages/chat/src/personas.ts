@@ -60,7 +60,7 @@ export function generateRoster(rng: () => number, count: number, _geography = "U
   const used = new Set<string>();
   return archetypes.slice(0, count).map((archetype) => {
     const capsRoll = rng();
-    const caps = capsRoll < 0.7 ? "normal" : capsRoll < 0.9 ? "lower" : "shout";
+    const caps = capsRoll < 0.7 ? "normal" : capsRoll < 0.96 ? "lower" : "shout";
     const emoji = rng() < 0.7 ? 0 : rng() < 0.85 ? 1 : 2;
     const late = archetype === "late";
     return {

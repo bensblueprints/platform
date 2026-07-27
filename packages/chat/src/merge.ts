@@ -10,8 +10,17 @@ function normalize(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+function isArtifact(text: string): boolean {
+  const t = text.trim();
+  if (t.length < 2) return true;
+  if (/^[{}()[\]<>{}\[\]\s.,!?;:'"\-]+$/.test(t)) return true;
+  if (/[{}\[\]]/.test(t) && t.replace(/[{}\[\]]/g, "").trim().length < 4) return true;
+  const letters = t.replace(/[^a-zA-Z]/g, "");
+  return letters.length < 2;
+}
+
 export function mergeLines<T extends MergeLine>(rng: () => number, beats: T[][], jitterSeconds = 3): T[] {
-  const flat = beats.flat().sort((a, b) => a.offsetSeconds - b.offsetSeconds);
+  const flat = beats.flat().filter((l) => !isArtifact(l.text)).sort((a, b) => a.offsetSeconds - b.offsetSeconds);
 
   // order-preserving jitter (same clamp walk as session variance)
   let prev = -Infinity;

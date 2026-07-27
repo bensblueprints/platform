@@ -88,13 +88,15 @@ export function validateScript(
     }
   }
 
-  // FTC (§12): attendee-role lines must not carry results/earnings claims
+  // FTC (§12 + the spec's own acceptance bar): the hard block targets
+  // earnings/results claims by attendees ("I made $X with this"). Bare
+  // price/percentage mentions ("is it $20 one time?", "did he say 40%?")
+  // are pricing curiosity, which the spec's density table expects in pitch
+  // and offer beats — they are not claims.
   for (const l of lines) {
     if (l.role !== "attendee" || l.hand) continue;
-    if (FTC_PATTERNS.currency.test(l.text) || FTC_PATTERNS.outcome.test(l.text)) {
+    if (FTC_PATTERNS.outcome.test(l.text)) {
       failures.push({ rule: "ftc", detail: `attendee claim: "${l.text.slice(0, 60)}"`, beat: l.beat });
-    } else if (FTC_PATTERNS.percentage.test(l.text) && FTC_PATTERNS.outcome.test(l.text)) {
-      failures.push({ rule: "ftc", detail: `attendee gain claim: "${l.text.slice(0, 60)}"`, beat: l.beat });
     }
   }
 
