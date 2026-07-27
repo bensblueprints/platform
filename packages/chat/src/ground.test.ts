@@ -13,9 +13,9 @@ describe("contentWords", () => {
 });
 
 describe("overlapRatio", () => {
-  it("measures jaccard-style containment of a in b", () => {
+  it("measures containment of a in b", () => {
     expect(overlapRatio(new Set(["a", "b", "c"]), new Set(["a", "b", "z"]))).toBeCloseTo(2 / 3);
-    expect(overlapRatio(new Set([]), new Set(["a"]))).toBe(1); // vacuous
+    expect(overlapRatio(new Set([]), new Set(["a"]))).toBe(1);
   });
 });
 
@@ -24,6 +24,12 @@ describe("isAtmospheric", () => {
     expect(isAtmospheric("is there a replay?")).toBe(true);
     expect(isAtmospheric("audio is clear")).toBe(true);
     expect(isAtmospheric("hello from Denver")).toBe(true);
+  });
+  it("matches pure sentiment", () => {
+    expect(isAtmospheric("this is such an amazing opportunity!")).toBe(true);
+    expect(isAtmospheric("OH YES PLEASE CONTINUE 💯")).toBe(true);
+  });
+  it("does not match content references", () => {
     expect(isAtmospheric("did he say 65 percent or 56?")).toBe(false);
   });
 });
@@ -36,12 +42,24 @@ describe("grounded (spec §7.5 anti-hallucination gate)", () => {
     expect(grounded("the diagnose framework breakdown is what I needed", transcript)).toBe(true);
   });
 
-  it("fails a line referencing content never said", () => {
+  it("fails a statement inventing a number", () => {
+    expect(grounded("the $20 price point makes sense", transcript)).toBe(false);
+  });
+
+  it("fails an invented capitalized name", () => {
+    expect(grounded("the Kubernetes deployment saved me", transcript)).toBe(false);
+  });
+
+  it("fails a whole-concept reference never said", () => {
     expect(grounded("the kubernetes deployment chapter saved my career", transcript)).toBe(false);
   });
 
   it("skips the gate for atmospheric lines", () => {
     expect(grounded("is there a replay?", transcript)).toBe(true);
     expect(grounded("audio is clear", transcript)).toBe(true);
+  });
+
+  it("exempts number questions (mishearing is natural)", () => {
+    expect(grounded("did he say 40 or 14?", transcript)).toBe(true);
   });
 });

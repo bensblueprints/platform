@@ -1,8 +1,14 @@
 /**
- * Transcript grounding (spec §7.5): the anti-hallucination gate. Cheap
- * token-overlap similarity (the spec's "cheap embedding pass" stand-in —
- * real embeddings need an endpoint we don't have keys for; documented in
- * the slice 9 design doc).
+ * Transcript grounding (spec §7.5): the anti-hallucination gate.
+ *
+ * Final semantics:
+ * 1. Atmospheric lines (logistics + pure sentiment) always pass — they make
+ *    no content claim, and real chat is full of them.
+ * 2. A digit token must literally appear in the transcript — unless the line
+ *    is a question (mishearing a number is the most natural question there is).
+ * 3. A capitalized non-sentence-initial name must appear in the transcript.
+ * 4. A line with 3+ content words where NONE appear in the transcript fails —
+ *    that's referencing a whole concept the presenter never said.
  */
 
 const STOPWORDS = new Set(
@@ -25,51 +31,51 @@ export function overlapRatio(a: Set<string>, b: Set<string>): number {
 const ATMOSPHERIC =
   /(replay|audio|sound|hear(ing)?|link|slide|email|pdf|download|worksheet|late|join(ing)?|hello|hi from|hi,? everyone|mic|camera|freeze|frozen|where.?s the)/i;
 
-// content-free sentiment ("this is amazing!", "love it 🔥") — real chat is
-// full of these; they make no transcript claim so grounding can't fail them
-const HYPE = new Set([
-  "great", "amazing", "awesome", "love", "loved", "loving", "excited", "exciting",
-  "wow", "best", "good", "nice", "cool", "brilliant", "fantastic", "incredible",
-  "thanks", "thank", "thx", "yes", "yep", "yup", "nope", "lol", "haha", "lmao",
-  "fire", "lit", "huge", "big", "perfect", "exactly", "true", "truth", "facts",
-  "impressed", "impressive", "solid", "smart", "genius", "interesting", "hype",
-]);
-const SENTIMENT_FILLER = new Set([
-  "this", "that", "these", "those", "such", "really", "very", "super", "totally",
-  "absolutely", "definitely", "honestly", "literally", "actually", "just", "also",
-  "here", "there", "thing", "things", "stuff", "something", "anything", "everything",
-  "everyone", "everybody", "guys", "people", "folks", "man", "bro", "dude",
-  "watching", "listening", "looking", "forward", "cant", "cant", "cannot", "wait",
-  "ready", "hyped", "pumped", "stoked", "glad", "happy", "sure", "okay", "ok", "continue", "keep", "going", "support", "team", "dev", "feedback", "expect", "expected", "expecting", "projects", "project", "similar", "compare", "other", "others", "question", "answer", "answers", "ask", "asked", "asking", "know", "knew", "think", "thinking", "thought", "mean", "meant", "see", "saw", "hear", "heard", "get", "gets", "got", "getting", "work", "works", "working", "process", "use", "used", "using", "make", "makes", "making", "need", "needs", "help", "helps", "explain", "understand", "understanding", "repeat", "clarify", "clear", "include", "included", "including", "increase", "increasing", "regular", "updates", "update", "features", "feature", "invoices",
-  "omg", "oh", "wow", "woah", "ay", "ayyy", "yess", "yessir", "lets", "let",
-  "go", "goo", "gogo", "come", "cmon", "please", "plz", "pls", "appreciate",
-  "much", "needed", "need", "wanted", "want", "like", "likes", "dis",
-]);
+const HYPE = new Set(
+  "oh please pls plz hey hi hello welcome aw aww yay woohoo yesss lets go goo gooo come cmon great amazing awesome love loved loving excited exciting wow best good nice cool brilliant fantastic incredible thanks thank thx yes yep yup nope lol haha lmao fire lit huge big perfect exactly true truth facts impressed impressive solid smart genius interesting hype opportunity chance moment time today tonight session webinar presentation video part thing things stuff way kind sort type person people guy guys someone anyone everyone somebody anybody everybody something anything everything nothing example couple few several many much more most less least first second next last previous current future past now later soon again already yet still just only even also too either neither both all any some none every each own same different another other others such like as so very really quite pretty rather almost nearly probably maybe perhaps possibly definitely certainly absolutely totally completely exactly precisely especially particularly generally usually normally typically obviously clearly honestly frankly seriously literally actually basically essentially simply merely right correct wrong sure okay ok continue keep going support team dev feedback expect expected expecting projects project similar compare question answer answers ask asked asking know knew think thinking thought mean meant see saw hear heard get gets got getting work works working process use used using make makes making need needs help helps explain understand understanding repeat clarify clear include included including increase increasing regular updates update features feature worth value deal deals".split(" "),
+);
 
 export function isAtmospheric(text: string): boolean {
   if (ATMOSPHERIC.test(text)) return true;
-  // sentiment-only: every content word is hype or filler (nothing referenced)
   const words = contentWords(text);
   if (words.size === 0) return true;
-  for (const w of words) {
-    if (!HYPE.has(w) && !SENTIMENT_FILLER.has(w)) return false;
-  }
+  for (const w of words) if (!HYPE.has(w)) return false;
   return true;
 }
 
-/**
- * A line is grounded when it is atmospheric (logistics/greetings need no
- * anchor), too short to judge, anchors on any content word (5+ chars) the
- * presenter actually said, or shares a third of its content words with the
- * transcript (backstop for short-worded lines).
- */
 export function grounded(lineText: string, transcript: string): boolean {
   if (isAtmospheric(lineText)) return true;
-  const line = contentWords(lineText);
-  if (line.size < 3) return true;
-  const transcriptWords = contentWords(transcript);
-  for (const w of line) {
-    if (w.length >= 5 && transcriptWords.has(w)) return true;
+  const said = transcript.toLowerCase();
+
+  // digits: must be said (mishearing questions are exempt)
+  if (!lineText.trimEnd().endsWith("?")) {
+    const numbers = lineText.match(/\d[\d,.%$]*/g) ?? [];
+    for (const n of numbers) {
+      const plain = n.replace(/[,.%$]/g, "");
+      if (plain && !said.includes(plain)) return false;
+    }
   }
-  return overlapRatio(line, transcriptWords) >= 1 / 3;
+
+  // capitalized names (non-sentence-initial, 3+ letters): must be said
+  const tokens = lineText.split(/\s+/);
+  for (let i = 1; i < tokens.length; i++) {
+    const w = tokens[i].replace(/[^A-Za-z]/g, "");
+    if (/^[A-Z][a-z]{2,}/.test(w) && !said.includes(w.toLowerCase())) return false;
+  }
+
+  // whole-concept hallucination: no overlap at all
+  const line = contentWords(lineText);
+  if (line.size >= 3) {
+    const transcriptWords = contentWords(transcript);
+    let any = false;
+    for (const w of line) {
+      if (transcriptWords.has(w)) {
+        any = true;
+        break;
+      }
+    }
+    if (!any) return false;
+  }
+
+  return true;
 }
