@@ -161,7 +161,7 @@ async function generateBeatLines(
     let raw = "";
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        raw = await inference.generate(messages);
+        raw = await inference.generate(messages, { json: true });
         return parseGeneratedLines(raw);
       } catch (err) {
         console.error(`[beat ${beat.type}] chunk attempt ${attempt + 1} failed:`, String(err).slice(0, 100));
