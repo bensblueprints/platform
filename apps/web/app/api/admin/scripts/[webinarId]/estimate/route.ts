@@ -1,4 +1,5 @@
 import { getSharedDb } from "@platform/core";
+import { sha256 } from "@platform/chat";
 import { isAdminAuthorized } from "../../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -28,10 +29,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ webinarI
   const { webinarId } = await params;
 
   const rows = await sql<
-    { duration_seconds: number; chat_audience_size: number | null }[]
-  >`select duration_seconds, chat_audience_size from webinars where id = ${webinarId}::uuid limit 1`;
+    { duration_seconds: number; chat_audience_size: number | null; video_url: string | null }[]
+  >`select duration_seconds, chat_audience_size, video_url from webinars where id = ${webinarId}::uuid limit 1`;
   const w = rows[0];
   if (!w) return Response.json({ error: "not_found" }, { status: 404 });
+
+  let transcriptSegments = 0;
+  if (w.video_url) {
+    const t = await sql<{ transcript: unknown }[]>`
+      select transcript from transcript_cache where video_hash = ${sha256(w.video_url)} limit 1
+    `;
+    const tr = t[0]?.transcript;
+    transcriptSegments = Array.isArray(tr) ? tr.length : 0;
+  }
 
   const settings = await sql<{ key: string; value: string }[]>`
     select key, value from app_settings where key in ('INFERENCE_MODEL', 'INFERENCE_API_KEY', 'INFERENCE_BASE_URL')
@@ -62,6 +72,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ webinarI
     audienceSize: w.chat_audience_size ?? 240,
     lines,
     tokens,
+    transcriptCached: transcriptSegments > 0,
+    transcriptSegments,
     model: configured ? model : "mock (local test generator)",
     costLow: cost * 0.6,
     costHigh: cost * 1.5,

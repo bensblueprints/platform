@@ -6,7 +6,7 @@ import { writeFileSync, unlinkSync } from "node:fs";
 import { mp4DurationSeconds } from "./video-storage.js";
 import { cleanupDeadSessions, createDb, getSetting, materializeRecurringSessions } from "@platform/core";
 import { activeAdapters, resolvePostSessionKind, type NotificationPayload } from "@platform/notifications";
-import { createInferenceFromSettings, runGenerationPipeline } from "@platform/chat";
+import { createInferenceFromSettings, runGenerationPipeline, sha256 } from "@platform/chat";
 
 const redisUrl = process.env.REDIS_URL;
 if (!redisUrl) throw new Error("REDIS_URL is not set");
@@ -85,6 +85,54 @@ async function importYoutube(sql: ReturnType<typeof createDb>, webinarId: string
 
 worker.on("failed", (job, err) => console.error(`[worker] job ${job?.name} failed:`, err.message));
 
+/**
+ * Lazy transcription (§7.8 cache-first), shared by the standalone transcribe
+ * job and the generation pipeline's stage 1. Transcription APIs cap ~25MB —
+ * big videos get voice-compressed to 16kHz mono mp3 chunks (150s ≈ 1MB)
+ * stitched with time offsets.
+ */
+function makeTranscribeFn(
+  inference: Awaited<ReturnType<typeof createInferenceFromSettings>>,
+  genSql: ReturnType<typeof createDb>,
+  webinarId: string,
+  videoUrl: string,
+) {
+  return async () => {
+    if (!videoUrl.startsWith("/api/media/")) {
+      return inference.transcribe(videoUrl);
+    }
+    const origin = (await getSetting(genSql, "PUBLIC_ORIGIN")) ?? "https://webinar-clone.onetimesuite.com";
+    const abs = origin.replace(/\/$/, "") + videoUrl;
+    const head = await fetch(abs, { method: "HEAD" });
+    const size = Number(head.headers.get("content-length") ?? 0);
+    console.log(`[generate] media pre-check: ${abs} size=${size}`);
+    if (size <= 18 * 1024 * 1024) {
+      return inference.transcribe(abs);
+    }
+    console.log(`[generate] compressing ${size} bytes to voice mp3 chunks`);
+    const raw = await (await fetch(abs)).blob();
+    writeFileSync(`/tmp/${webinarId}.mp4`, Buffer.from(await raw.arrayBuffer()));
+    await execFileP("ffmpeg", [
+      "-y", "-i", `/tmp/${webinarId}.mp4`,
+      "-vn", "-ac", "1", "-ar", "16000", "-b:a", "24k",
+      "-f", "segment", "-segment_time", "150", "-reset_timestamps", "1",
+      `/tmp/${webinarId}-%03d.mp3`,
+    ], { timeout: 5 * 60_000 });
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const chunks = readdirSync("/tmp")
+      .filter((f) => f.startsWith(`${webinarId}-`) && f.endsWith(".mp3"))
+      .sort();
+    console.log(`[generate] transcribing ${chunks.length} chunks`);
+    const all: { start: number; end: number; text: string }[] = [];
+    for (const [i, c] of chunks.entries()) {
+      const blob = new Blob([readFileSync(`/tmp/${c}`)], { type: "audio/mpeg" });
+      const segs = await inference.transcribeBlob(blob, c);
+      for (const seg of segs) all.push({ start: seg.start + i * 150, end: seg.end + i * 150, text: seg.text });
+    }
+    return all;
+  };
+}
+
 // Notification reminders (spec §11): confirm, 24h/1h/10m, attended/no-show
 const notifWorker = new Worker(
   "notifications",
@@ -117,6 +165,50 @@ const genWorker = new Worker(
       mode?: "full" | "regen-beat";
       beatType?: string | null;
     };
+
+    // Standalone transcribe job (step 1 of the two-step generation flow):
+    // fills transcript_cache, nothing else.
+    if (job.name === "transcribe") {
+      const genSql = createDb();
+      await genSql`update generation_jobs set status = 'running', stage = 'transcribe', updated_at = now() where id = ${jobId}`;
+      try {
+        const ws = await genSql<any[]>`
+          select id, video_url from webinars where id = ${webinarId}::uuid limit 1
+        `;
+        const w = ws[0];
+        if (!w?.video_url) throw new Error("webinar has no video_url");
+        const inference = await createInferenceFromSettings((k) => getSetting(genSql, k));
+        const videoHash = sha256(w.video_url);
+        const cached = await genSql<any[]>`
+          select transcript from transcript_cache where video_hash = ${videoHash} limit 1
+        `;
+        let count: number;
+        if (cached[0]) {
+          const t = cached[0].transcript;
+          count = (Array.isArray(t) ? t : JSON.parse(t)).length;
+          console.log(`[transcribe] ${jobId} cache hit: ${count} segments`);
+        } else {
+          const segments = await makeTranscribeFn(inference, genSql, webinarId, w.video_url)();
+          count = segments.length;
+          await genSql`
+            insert into transcript_cache (video_hash, transcript) values (${videoHash}, ${genSql.json(segments)})
+            on conflict (video_hash) do nothing
+          `;
+          console.log(`[transcribe] ${jobId} transcribed: ${count} segments`);
+        }
+        await genSql`
+          update generation_jobs set status = 'done', stage = 'emit',
+            usage = ${genSql.json({ kind: "transcribe", segments: count })}, updated_at = now()
+          where id = ${jobId}
+        `;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await genSql`update generation_jobs set status = 'failed', error = ${msg}, updated_at = now() where id = ${jobId}`;
+        throw err;
+      }
+      return;
+    }
+
     const genSql = createDb();
     await genSql`update generation_jobs set status = 'running', stage = 'transcribe', updated_at = now() where id = ${jobId}`;
     try {
@@ -129,44 +221,7 @@ const genWorker = new Worker(
       const inference = await createInferenceFromSettings((k) => getSetting(genSql, k));
       const mockBeats = ((await getSetting(genSql, "INFERENCE_BASE_URL")) ?? "mock") === "mock";
 
-      // Transcription is cache-first inside the pipeline (§7.8), so all the
-      // heavy lifting lives inside this closure and only runs on a cache
-      // miss. Transcription APIs cap ~25MB — big videos get voice-compressed
-      // to 16kHz mono mp3 chunks (150s ≈ 1MB) stitched with time offsets.
-      const transcribeFn = async () => {
-        if (!w.video_url?.startsWith("/api/media/")) {
-          return inference.transcribe(w.video_url!);
-        }
-        const origin = (await getSetting(genSql, "PUBLIC_ORIGIN")) ?? "https://webinar-clone.onetimesuite.com";
-        const abs = origin.replace(/\/$/, "") + w.video_url;
-        const head = await fetch(abs, { method: "HEAD" });
-        const size = Number(head.headers.get("content-length") ?? 0);
-        console.log(`[generate] media pre-check: ${abs} size=${size}`);
-        if (size <= 18 * 1024 * 1024) {
-          return inference.transcribe(abs);
-        }
-        console.log(`[generate] compressing ${size} bytes to voice mp3 chunks`);
-        const raw = await (await fetch(abs)).blob();
-        writeFileSync(`/tmp/${webinarId}.mp4`, Buffer.from(await raw.arrayBuffer()));
-        await execFileP("ffmpeg", [
-          "-y", "-i", `/tmp/${webinarId}.mp4`,
-          "-vn", "-ac", "1", "-ar", "16000", "-b:a", "24k",
-          "-f", "segment", "-segment_time", "150", "-reset_timestamps", "1",
-          `/tmp/${webinarId}-%03d.mp3`,
-        ], { timeout: 5 * 60_000 });
-        const { readdirSync, readFileSync } = await import("node:fs");
-        const chunks = readdirSync("/tmp")
-          .filter((f) => f.startsWith(`${webinarId}-`) && f.endsWith(".mp3"))
-          .sort();
-        console.log(`[generate] transcribing ${chunks.length} chunks`);
-        const all: { start: number; end: number; text: string }[] = [];
-        for (const [i, c] of chunks.entries()) {
-          const blob = new Blob([readFileSync(`/tmp/${c}`)], { type: "audio/mpeg" });
-          const segs = await inference.transcribeBlob(blob, c);
-          for (const seg of segs) all.push({ start: seg.start + i * 150, end: seg.end + i * 150, text: seg.text });
-        }
-        return all;
-      };
+      const transcribeFn = makeTranscribeFn(inference, genSql, webinarId, w.video_url);
 
       const onStage = (stage: string) => {
         void genSql`update generation_jobs set stage = ${stage}, updated_at = now() where id = ${jobId}`.catch(

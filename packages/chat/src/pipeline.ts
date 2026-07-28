@@ -88,7 +88,7 @@ function extractJson(raw: string): any {
   throw new Error("no balanced JSON object in model output");
 }
 
-function sha256(s: string): string {
+export function sha256(s: string): string {
   const fnv = (seed: number) => {
     let h = seed >>> 0;
     for (let i = 0; i < s.length; i++) {

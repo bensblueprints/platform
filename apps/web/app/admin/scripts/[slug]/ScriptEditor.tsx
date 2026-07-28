@@ -69,6 +69,8 @@ export default function ScriptEditor({
     beats: number;
     lines?: number;
     tokens: number;
+    transcriptCached?: boolean;
+    transcriptSegments?: number;
     model: string;
     costLow: number;
     costHigh: number;
@@ -89,6 +91,40 @@ export default function ScriptEditor({
   useEffect(() => {
     void loadEstimate();
   }, [loadEstimate]);
+
+  async function transcribe() {
+    setNotice("transcribing…");
+    const res = await fetch("/api/admin/transcribe", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ webinarId }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setNotice(j.error ?? "failed");
+      return;
+    }
+    const poll = setInterval(async () => {
+      const s = await fetch(`/api/admin/generate/${j.jobId}`, { headers: { "x-admin-key": adminKey } }).then(
+        (r) => r.json(),
+      );
+      if (!s.status) {
+        clearInterval(poll);
+        setNotice("status check failed — reload the page");
+        return;
+      }
+      setNotice(`transcribe: ${s.status}`);
+      if (s.status === "done" || s.status === "failed") {
+        clearInterval(poll);
+        setNotice(
+          s.status === "done"
+            ? "transcript ready — now generate the script"
+            : `transcribe failed: ${String(s.error).slice(0, 200)}`,
+        );
+        void loadEstimate();
+      }
+    }, 3000);
+  }
 
   async function saveAudience() {
     if (audience == null) return;
@@ -193,7 +229,7 @@ export default function ScriptEditor({
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold">{title} — script editor</h1>
         <button onClick={generate} className="rounded bg-red-600 px-4 py-2 text-sm font-medium" data-testid="generate-btn">
-          Generate script
+          Generate chat script
         </button>
         <button
           onClick={publish}
@@ -216,7 +252,21 @@ export default function ScriptEditor({
       </header>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
-        <span>transcribe → write chat log per beat → support answers every question → you review and publish</span>
+        <span>
+          step 1: transcribe the video → step 2: generate the chat script → review and publish
+        </span>
+        <span className="flex items-center gap-2">
+          {estimate?.transcriptCached ? (
+            <span className="text-emerald-300">
+              transcript ready ({estimate.transcriptSegments} segments)
+            </span>
+          ) : (
+            <span className="text-amber-300">no transcript yet</span>
+          )}
+          <button onClick={transcribe} className="rounded border border-zinc-600 px-2 py-0.5" data-testid="transcribe-btn">
+            {estimate?.transcriptCached ? "Re-transcribe" : "Transcribe video"}
+          </button>
+        </span>
         {estimate && (
           <span data-testid="gen-estimate">
             Estimated run: ~{estimate.beats} beats · ~{estimate.lines ?? "—"} lines · ~
