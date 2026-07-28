@@ -22,6 +22,11 @@ interface MergedLine {
   message: string;
 }
 
+/** Scripted lines lag the wall clock slightly so each one lands with the
+ * moment on screen — playback startup plus viewer reaction time makes
+ * wall-clock lines read a few seconds early. Real messages are not delayed. */
+const SCRIPT_LAG_SECONDS = 3;
+
 /**
  * Seeded + real chat rail (spec §6.1: two paths, never merged server-side;
  * they compose here by visible-time). Seeded lines render by script offset;
@@ -68,7 +73,7 @@ export default function ChatRail({
   const merged: MergedLine[] = [
     ...lines.map((l, i) => ({
       key: `s-${l.offsetSeconds}-${l.sortOrder ?? i}`,
-      offset_seconds: l.offsetSeconds,
+      offset_seconds: l.offsetSeconds + SCRIPT_LAG_SECONDS,
       displayName: l.displayName,
       role: l.role,
       mode: l.mode,
@@ -200,7 +205,7 @@ function ChatRow({ line }: { line: MergedLine }) {
             : "rounded bg-sky-950/60 px-2 py-1.5"
         }
       >
-        <span className="mr-2 text-xs font-semibold text-sky-300">{line.displayName}</span>
+        <span className="mr-3 text-sm font-semibold text-sky-300">{line.displayName}</span>
         {highlighted && (
           <span className="mr-2 rounded bg-amber-400/20 px-1 text-[10px] uppercase text-amber-300">Pinned</span>
         )}
@@ -211,14 +216,14 @@ function ChatRow({ line }: { line: MergedLine }) {
   if (line.role === "you") {
     return (
       <div data-role="you" data-mode="real" className="rounded bg-red-950/50 px-2 py-1">
-        <span className="mr-2 text-xs font-semibold text-red-300">{line.displayName}</span>
+        <span className="mr-3 text-sm font-semibold text-red-300">{line.displayName}</span>
         <span className="text-sm text-zinc-100">{line.message}</span>
       </div>
     );
   }
   return (
     <div data-role="attendee" data-mode={line.mode} className="px-2 py-0.5">
-      <span className="mr-2 text-xs font-medium text-zinc-400">{line.displayName}</span>
+      <span className="mr-3 text-sm font-medium text-zinc-400">{line.displayName}</span>
       {line.mode === "question" && (
         <span className="mr-1 rounded bg-zinc-700 px-1 text-[10px] uppercase text-zinc-300">Q</span>
       )}
