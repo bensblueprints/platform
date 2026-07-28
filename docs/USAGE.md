@@ -58,7 +58,7 @@ Visitors who arrive before start see the waiting room: your content plus a live 
 - **Headline** — defaults to "Please wait, the webinar will be starting shortly".
 - **Description** — a line or two under the headline.
 - **Image** — upload any png/jpg/webp/gif; it renders above the headline. Replace or remove any time.
-- **As seen on** — comma-separated press names (e.g. `Product Hunt, Yahoo Finance, AppSumo`) rendered as a badge strip. With a BrandFetch client ID in Settings they render as real logos; otherwise styled text badges. Only list outlets that have actually featured you — invented press mentions are an FTC problem, not a growth hack.
+- **As seen on** — comma-separated press names (e.g. `Product Hunt, Yahoo Finance, AppSumo`) rendered as a badge strip. Badge logos render from files uploaded for each badge name (`PUT /api/admin/webinars/<id>/badge-image?name=<badge>` with the image as the body — svg/png/jpg/webp/gif); without a file, a BrandFetch client ID in Settings pulls the logo live; without either, styled text badges. Only list outlets that have actually featured you — invented press mentions are an FTC problem, not a growth hack.
 
 ## 4. Get the video in
 

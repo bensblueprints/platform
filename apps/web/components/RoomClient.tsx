@@ -28,26 +28,40 @@ function badgeDomain(name: string): string {
 }
 
 /**
- * Press badge: BrandFetch logo when a client id is configured (their Logo
- * Link is meant for public pages), styled text pill otherwise or on error.
+ * Press badge: a logo uploaded to the platform wins; then BrandFetch's Logo
+ * Link when a client id is configured; otherwise a styled text pill.
  */
-function PressBadge({ name, clientId }: { name: string; clientId: string | null }) {
-  const [failed, setFailed] = useState(false);
-  if (!clientId || failed) {
+function PressBadge({
+  webinarId,
+  name,
+  clientId,
+}: {
+  webinarId: string;
+  name: string;
+  clientId: string | null;
+}) {
+  const [stage, setStage] = useState<"local" | "brandfetch" | "pill">("local");
+  if (stage === "pill") {
     return (
       <span className="rounded-full border border-zinc-600 px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-300">
         {name}
       </span>
     );
   }
+  const src =
+    stage === "local"
+      ? `/api/media/${webinarId}/badge/${encodeURIComponent(name)}`
+      : `https://cdn.brandfetch.io/${badgeDomain(name)}?c=${clientId}`;
   return (
     <span className="flex h-7 items-center rounded-full border border-zinc-600 bg-zinc-950 px-3">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={`https://cdn.brandfetch.io/${badgeDomain(name)}?c=${clientId}`}
+        src={src}
         alt={name}
         className="h-4 w-auto"
-        onError={() => setFailed(true)}
+        onError={() =>
+          setStage((s) => (s === "local" ? (clientId ? "brandfetch" : "pill") : "pill"))
+        }
       />
     </span>
   );
@@ -253,6 +267,7 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
                       {payload.webinar.waitingRoom.badges.map((name) => (
                         <PressBadge
                           key={name}
+                          webinarId={payload.webinar.id}
                           name={name}
                           clientId={payload.webinar.waitingRoom!.brandfetchId}
                         />

@@ -60,6 +60,7 @@ export function toOfferPayload(row: OfferRow): OfferPayload {
 export function toRoomPayload(
   w: Pick<
     WebinarRow,
+    | "id"
     | "title"
     | "duration_seconds"
     | "video_url"
@@ -95,6 +96,7 @@ export function toRoomPayload(
       : null;
   return {
     webinar: {
+      id: w.id,
       title: w.title,
       durationSeconds: w.duration_seconds,
       videoUrl: w.video_url,

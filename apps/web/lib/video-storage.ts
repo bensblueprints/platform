@@ -95,3 +95,34 @@ export function deleteWaitingImage(webinarId: string): void {
     if (existsSync(p)) unlinkSync(p);
   }
 }
+
+const BADGE_EXTS = ["svg", "png", "jpg", "webp", "gif"] as const;
+
+export function badgeSlug(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export function findBadgeImage(webinarId: string, name: string): { path: string; ext: string } | null {
+  const slug = badgeSlug(name);
+  for (const ext of BADGE_EXTS) {
+    const p = path.join(DIR, `${webinarId}-badge-${slug}.${ext}`);
+    if (existsSync(p)) return { path: p, ext };
+  }
+  return null;
+}
+
+/** Save a press-badge logo (replaces any existing file for that badge). */
+export async function saveBadgeImage(webinarId: string, name: string, ext: string, body: ReadableStream): Promise<void> {
+  mkdirSync(DIR, { recursive: true });
+  const slug = badgeSlug(name);
+  for (const e of BADGE_EXTS) {
+    const p = path.join(DIR, `${webinarId}-badge-${slug}.${e}`);
+    if (existsSync(p)) unlinkSync(p);
+  }
+  const nodeStream = Readable.fromWeb(body as any);
+  await pipeline(nodeStream, createWriteStream(path.join(DIR, `${webinarId}-badge-${slug}.${ext}`)));
+}

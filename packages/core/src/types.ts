@@ -136,6 +136,7 @@ export interface OfferPayload {
 
 export interface RoomPayload {
   webinar: {
+    id: string;
     title: string;
     durationSeconds: number;
     videoUrl: string | null;
