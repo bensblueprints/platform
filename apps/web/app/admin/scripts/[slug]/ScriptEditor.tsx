@@ -67,6 +67,7 @@ export default function ScriptEditor({
 
   const [estimate, setEstimate] = useState<{
     beats: number;
+    lines?: number;
     tokens: number;
     model: string;
     costLow: number;
@@ -215,9 +216,11 @@ export default function ScriptEditor({
       </header>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+        <span>transcribe → write chat log per beat → support answers every question → you review and publish</span>
         {estimate && (
           <span data-testid="gen-estimate">
-            Estimated run: ~{estimate.beats} beats · ~{Math.round(estimate.tokens / 1000)}k tokens
+            Estimated run: ~{estimate.beats} beats · ~{estimate.lines ?? "—"} lines · ~
+            {Math.round(estimate.tokens / 1000)}k tokens
             {estimate.costHigh > 0
               ? ` · ≈ $${estimate.costLow.toFixed(2)}–$${estimate.costHigh.toFixed(2)}`
               : ""}{" "}
@@ -239,6 +242,11 @@ export default function ScriptEditor({
               save
             </button>
           </label>
+        )}
+        {job?.status === "failed" && job.error != null && (
+          <span className="text-red-300" data-testid="last-failure">
+            last run failed: {String(job.error).slice(0, 300)}
+          </span>
         )}
       </div>
 

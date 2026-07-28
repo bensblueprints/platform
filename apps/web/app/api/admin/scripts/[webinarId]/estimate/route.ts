@@ -44,7 +44,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ webinarI
     !!(map.get("INFERENCE_BASE_URL") ?? process.env.INFERENCE_BASE_URL);
 
   const beats = Math.max(6, Math.ceil(w.duration_seconds / 120));
-  const tokens = beats * 5200 + 25000;
+  // same audience scaling the pipeline applies (§7.3/§7.4)
+  const audience = w.chat_audience_size ?? 240;
+  const scale = Math.min(6, Math.max(0.25, audience / 240));
+  // ~2.7 lines/min averaged across beat types, scaled to the crowd
+  const lines = Math.round((w.duration_seconds / 60) * 2.7 * scale);
+  // beats classification + per-beat calls (~2.6k each with retries) + ~45
+  // tokens per written line + roster/merge overhead
+  const tokens = Math.round(beats * 2600 + lines * 45 + 20000);
 
   const [, inPrice, outPrice] =
     PRICING.find(([substr]) => model.toLowerCase().includes(substr)) ?? ["", 0.5, 1.5];
@@ -53,6 +60,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ webinarI
   return Response.json({
     beats,
     audienceSize: w.chat_audience_size ?? 240,
+    lines,
     tokens,
     model: configured ? model : "mock (local test generator)",
     costLow: cost * 0.6,

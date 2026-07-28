@@ -6,6 +6,7 @@ import { generateRoster, type Persona } from "./personas";
 import { mergeLines } from "./merge";
 import { validateScript, type GenLine, type ValidationFailure } from "./validate";
 import { contentWords, isAtmospheric } from "./ground";
+import { FTC_PATTERNS } from "./lint";
 
 /** Structural DB handle so @platform/chat never depends on @platform/core. */
 export type SqlLike = <T = any>(strings: TemplateStringsArray, ...values: any[]) => Promise<T>;
@@ -54,7 +55,7 @@ function sanitizeJsonText(raw: string): string {
 }
 /** Extract the first JSON object from model output (fences, prose, truncation). */
 function extractJson(raw: string): any {
-  const cleaned = sanitizeJsonText(raw.replace(/```json|```/g, ""));
+  const cleaned = sanitizeJsonText(String(raw ?? "").replace(/```json|```/g, ""));
   const start = cleaned.indexOf("{");
   if (start === -1) throw new Error("no JSON object in model output");
   // try the full span first
@@ -268,8 +269,8 @@ const ANSWER_TEMPLATES = [
 /** §7.4 pairing, enforced globally after merge so regen scopes can't strand questions. */
 /** Trim overproduction to the density band: drop sentiment-only filler
  * first, then seeded-random others, until organic count is inside. */
-function trimToDensity(lines: GenLine[], beats: Beat[], rng: () => number): GenLine[] {
-  const target = beats.reduce((s, b) => s + targetLineCount(b), 0);
+function trimToDensity(lines: GenLine[], beats: Beat[], rng: () => number, densityScale = 1): GenLine[] {
+  const target = beats.reduce((s, b) => s + Math.round(targetLineCount(b) * densityScale), 0);
   const organic = (ls: GenLine[]) => ls.filter((l) => !(l.role === "admin" && l.mode === "answer"));
   const upper = target + Math.max(target * 0.15, 2);
   if (organic(lines).length <= upper) return lines;
@@ -536,14 +537,14 @@ export async function runGenerationPipeline(
     generated.push(...beatLines);
   }
   let lines = repairPersonaSpacing(ensurePairing(mergeLines(rng, [generated]), rng), roster, rng);
-  lines = trimToDensity(lines, beats, rng);
+  lines = trimToDensity(lines, beats, rng, densityScale);
 
   // Top-up: if organic volume is below the density band's floor, generate
   // once more for the sparsest beat before validating (§7.4). Persona
   // starvation on short scripts is the usual cause of the shortfall.
   const organicCount = (ls: GenLine[]) =>
     ls.filter((l) => !(l.role === "admin" && l.mode === "answer")).length;
-  const totalTarget = beats.reduce((s, b) => s + targetLineCount(b), 0);
+  const totalTarget = beats.reduce((s, b) => s + Math.round(targetLineCount(b) * densityScale), 0);
   if (organicCount(lines) < totalTarget - 2) {
     const sparsest = targetBeats
       .map((b) => ({ b, gap: targetLineCount(b) - organicCount(lines.filter((l) => l.beat === b.type)) }))
@@ -557,7 +558,7 @@ export async function runGenerationPipeline(
   }
 
   // 6. validate; regenerate failing beats once (§7.5)
-  let failures = validateScript(lines, beats).failures;
+  let failures = validateScript(lines, beats, { densityScale }).failures;
   if (failures.length > 0) {
     const failingBeatTypes = [...new Set(failures.map((f) => f.beat).filter(Boolean))] as BeatType[];
     for (const bt of failingBeatTypes) {
@@ -571,7 +572,15 @@ export async function runGenerationPipeline(
       usage.llmCalls++;
       lines = ensurePairing(mergeLines(rng, [[...without, ...regen]]), rng);
     }
-    failures = validateScript(lines, beats).failures;
+    failures = validateScript(lines, beats, { densityScale }).failures;
+  }
+
+  // FTC floor (§12): never ship an attendee results claim. After the regen
+  // attempts, strip stragglers rather than killing the whole run.
+  if (lines.some((l) => l.role === "attendee" && !l.hand && FTC_PATTERNS.outcome.test(l.text))) {
+    lines = lines.filter((l) => l.role !== "attendee" || l.hand || !FTC_PATTERNS.outcome.test(l.text));
+    lines = ensurePairing(lines, rng);
+    failures = validateScript(lines, beats, { densityScale }).failures;
   }
 
   return { lines, beats, roster, failures, usage };

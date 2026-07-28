@@ -280,15 +280,11 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
                 </p>
               </div>
             </div>
-          ) : started ? (
-            <p className="font-mono text-sm text-zinc-400" data-testid="offset-readout">
-              {fmt(offset)} / {fmt(payload.webinar.durationSeconds)}
-            </p>
-          ) : (
+          ) : !started ? (
             <p className="font-mono text-sm text-zinc-400" data-testid="starting-readout">
               Starting…
             </p>
-          )}
+          ) : null}
           {mutedStart && (
             <button
               onClick={unmute}

@@ -101,5 +101,12 @@ test("ondemand: register and join end-to-end", async ({ page }) => {
 
   await page.getByRole("link", { name: "Join the session now" }).click();
   await page.waitForURL(/\/room\//);
-  await expect(page.getByTestId("offset-readout")).toBeVisible({ timeout: 20_000 });
+  await page.waitForFunction(
+    () => {
+      const v = document.querySelector("video");
+      return v && !v.paused;
+    },
+    null,
+    { timeout: 20_000 },
+  );
 });

@@ -28,7 +28,7 @@ export interface ValidationFailure {
 export function validateScript(
   lines: GenLine[],
   beats: Beat[],
-  opts?: { skipDensity?: boolean },
+  opts?: { skipDensity?: boolean; densityScale?: number },
 ): { ok: boolean; failures: ValidationFailure[] } {
   const failures: ValidationFailure[] = [];
 
@@ -77,9 +77,11 @@ export function validateScript(
     }
   }
 
-  // density: total lines within ±15% of the summed targets
+  // density: total lines within ±15% of the summed targets. The scale must
+  // match what generation aimed at (audience-sized rooms ask for more).
   if (!opts?.skipDensity && beats.length > 0) {
-    const target = beats.reduce((sum, b) => sum + targetLineCount(b), 0);
+    const scale = opts?.densityScale ?? 1;
+    const target = beats.reduce((sum, b) => sum + Math.round(targetLineCount(b) * scale), 0);
     // admin answers are added mechanically by question pairing; the density
     // target describes audience/organic volume (§7.4)
     const counted = lines.filter((l) => !(l.role === "admin" && l.mode === "answer")).length;
