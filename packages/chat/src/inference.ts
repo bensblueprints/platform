@@ -61,19 +61,34 @@ export function createOpenAiClient(opts: {
     transcribeBlob: (blob, filename) => doTranscribe(blob, filename),
 
     async generate(messages, genOpts) {
-      // retry rate limits with backoff (groq free tier is 429-prone)
+      // retry rate limits with backoff (groq free tier is 429-prone); a
+      // stalled provider fails fast into the same retry path
       for (let attempt = 0; ; attempt++) {
-        const res = await fetch(`${base}/v1/chat/completions`, {
-          method: "POST",
-          headers: { authorization: `Bearer ${opts.apiKey}`, "content-type": "application/json" },
-          body: JSON.stringify({
-            model: chatModel,
-            messages,
-            temperature: 0.9,
-            max_tokens: 4096,
-            ...(genOpts?.json ? { response_format: { type: "json_object" } } : {}),
-          }),
-        });
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 60_000);
+        let res: Response;
+        try {
+          res = await fetch(`${base}/v1/chat/completions`, {
+            method: "POST",
+            headers: { authorization: `Bearer ${opts.apiKey}`, "content-type": "application/json" },
+            signal: controller.signal,
+            body: JSON.stringify({
+              model: chatModel,
+              messages,
+              temperature: 0.9,
+              max_tokens: 4096,
+              ...(genOpts?.json ? { response_format: { type: "json_object" } } : {}),
+            }),
+          });
+        } catch (err) {
+          clearTimeout(timer);
+          if (attempt < 4) {
+            await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
+            continue;
+          }
+          throw err;
+        }
+        clearTimeout(timer);
         if (res.ok) {
           const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
           const content = json.choices?.[0]?.message?.content;

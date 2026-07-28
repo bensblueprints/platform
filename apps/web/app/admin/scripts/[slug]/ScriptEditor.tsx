@@ -248,6 +248,14 @@ export default function ScriptEditor({
             last run failed: {String(job.error).slice(0, 300)}
           </span>
         )}
+        {job?.status === "done" &&
+          Array.isArray((job.usage as any)?.warnings) &&
+          (job.usage as any).warnings.length > 0 && (
+            <span className="text-amber-300" data-testid="last-warnings">
+              last run finished with {(job.usage as any).warnings.length} warnings — review flagged
+              lines before publishing
+            </span>
+          )}
       </div>
 
       {/* density heatmap */}

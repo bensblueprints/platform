@@ -129,50 +129,50 @@ const genWorker = new Worker(
       const inference = await createInferenceFromSettings((k) => getSetting(genSql, k));
       const mockBeats = ((await getSetting(genSql, "INFERENCE_BASE_URL")) ?? "mock") === "mock";
 
-      // Groq transcription caps ~25MB — voice-compress big videos to 16kHz
-      // mono mp3 first (19min ≈ 4MB) and transcribe the audio.
-      let transcribeInput: { videoUrl: string } | { blob: Blob; filename: string } = { videoUrl: w.video_url };
-      if (w.video_url?.startsWith("/api/media/")) {
+      // Transcription is cache-first inside the pipeline (§7.8), so all the
+      // heavy lifting lives inside this closure and only runs on a cache
+      // miss. Transcription APIs cap ~25MB — big videos get voice-compressed
+      // to 16kHz mono mp3 chunks (150s ≈ 1MB) stitched with time offsets.
+      const transcribeFn = async () => {
+        if (!w.video_url?.startsWith("/api/media/")) {
+          return inference.transcribe(w.video_url!);
+        }
         const origin = (await getSetting(genSql, "PUBLIC_ORIGIN")) ?? "https://webinar-clone.onetimesuite.com";
         const abs = origin.replace(/\/$/, "") + w.video_url;
         const head = await fetch(abs, { method: "HEAD" });
         const size = Number(head.headers.get("content-length") ?? 0);
         console.log(`[generate] media pre-check: ${abs} size=${size}`);
-        if (size > 18 * 1024 * 1024) {
-          console.log(`[generate] compressing ${size} bytes to voice mp3`);
-          const raw = await (await fetch(abs)).blob();
-          writeFileSync(`/tmp/${webinarId}.mp4`, Buffer.from(await raw.arrayBuffer()));
-          // Groq's practical upload ceiling is a few MB — chunk into 150s
-          // segments (~1MB each) and stitch transcripts with time offsets.
-          await execFileP("ffmpeg", [
-            "-y", "-i", `/tmp/${webinarId}.mp4`,
-            "-vn", "-ac", "1", "-ar", "16000", "-b:a", "24k",
-            "-f", "segment", "-segment_time", "150", "-reset_timestamps", "1",
-            `/tmp/${webinarId}-%03d.mp3`,
-          ], { timeout: 5 * 60_000 });
-          const { readdirSync, readFileSync, statSync } = await import("node:fs");
-          const chunks = readdirSync("/tmp")
-            .filter((f) => f.startsWith(`${webinarId}-`) && f.endsWith(".mp3"))
-            .sort();
-          console.log(`[generate] transcribing ${chunks.length} chunks: ${chunks.map((c) => statSync("/tmp/" + c).size).join(",")} bytes`);
-          (transcribeInput as any).chunks = chunks;
+        if (size <= 18 * 1024 * 1024) {
+          return inference.transcribe(abs);
         }
-      }
-      console.log(`[generate] transcribe via: ${(transcribeInput as any).chunks ? "chunked mp3" : "blob" in transcribeInput ? "compressed mp3 blob" : "video url " + w.video_url}`);
-      const transcribeFn = (transcribeInput as any).chunks
-        ? async () => {
-            const { readFileSync } = await import("node:fs");
-            const all: { start: number; end: number; text: string }[] = [];
-            for (const [i, c] of (transcribeInput as any).chunks.entries()) {
-              const blob = new Blob([readFileSync(`/tmp/${c}`)], { type: "audio/mpeg" });
-              const segs = await inference.transcribeBlob(blob, c);
-              for (const seg of segs) all.push({ start: seg.start + i * 150, end: seg.end + i * 150, text: seg.text });
-            }
-            return all;
-          }
-        : ("blob" in transcribeInput)
-          ? () => inference.transcribeBlob((transcribeInput as any).blob, (transcribeInput as any).filename)
-          : undefined;
+        console.log(`[generate] compressing ${size} bytes to voice mp3 chunks`);
+        const raw = await (await fetch(abs)).blob();
+        writeFileSync(`/tmp/${webinarId}.mp4`, Buffer.from(await raw.arrayBuffer()));
+        await execFileP("ffmpeg", [
+          "-y", "-i", `/tmp/${webinarId}.mp4`,
+          "-vn", "-ac", "1", "-ar", "16000", "-b:a", "24k",
+          "-f", "segment", "-segment_time", "150", "-reset_timestamps", "1",
+          `/tmp/${webinarId}-%03d.mp3`,
+        ], { timeout: 5 * 60_000 });
+        const { readdirSync, readFileSync } = await import("node:fs");
+        const chunks = readdirSync("/tmp")
+          .filter((f) => f.startsWith(`${webinarId}-`) && f.endsWith(".mp3"))
+          .sort();
+        console.log(`[generate] transcribing ${chunks.length} chunks`);
+        const all: { start: number; end: number; text: string }[] = [];
+        for (const [i, c] of chunks.entries()) {
+          const blob = new Blob([readFileSync(`/tmp/${c}`)], { type: "audio/mpeg" });
+          const segs = await inference.transcribeBlob(blob, c);
+          for (const seg of segs) all.push({ start: seg.start + i * 150, end: seg.end + i * 150, text: seg.text });
+        }
+        return all;
+      };
+
+      const onStage = (stage: string) => {
+        void genSql`update generation_jobs set stage = ${stage}, updated_at = now() where id = ${jobId}`.catch(
+          () => {},
+        );
+      };
 
       let result;
       if (mode === "regen-beat" && beatType) {
@@ -204,15 +204,13 @@ const genWorker = new Worker(
           onlyBeatType: beatType as any,
           existingLines: draftLines.filter((l) => l.beat !== beatType),
           existingRoster: rosterRows.length ? rosterRows.map((r) => r.persona) : undefined,
+          onStage,
         });
 
         if (result.failures.length > 0) {
-          await genSql`
-            update generation_jobs set status = 'failed', error = ${genSql.json(result.failures)},
-              usage = ${genSql.json(result.usage)}, updated_at = now() where id = ${jobId}
-          `;
-          console.warn(`[generate] regen ${jobId} failed validation:`, JSON.stringify(result.failures).slice(0, 400));
-          return;
+          // Warnings, not death — the draft still lands and the reviewer sees
+          // the flags (FTC claims are stripped inside the pipeline).
+          console.warn(`[generate] regen ${jobId} warnings:`, JSON.stringify(result.failures).slice(0, 400));
         }
 
         const beatRanges = result.beats
@@ -235,7 +233,7 @@ const genWorker = new Worker(
         }
         await genSql`
           update generation_jobs set status = 'done',
-            usage = ${genSql.json({ ...result.usage, regenBeat: beatType })}, updated_at = now()
+            usage = ${genSql.json({ ...result.usage, regenBeat: beatType, warnings: result.failures })}, updated_at = now()
           where id = ${jobId}
         `;
         console.log(`[generate] ${jobId} regen-beat ${beatType}: ${newLines.length} lines`);
@@ -249,15 +247,21 @@ const genWorker = new Worker(
         useMockBeats: mockBeats,
         audienceSize: w.chat_audience_size ?? 240,
         transcribeFn,
+        onStage,
       });
 
-      if (result.failures.length > 0) {
+      if (result.lines.length === 0) {
         await genSql`
-          update generation_jobs set status = 'failed', error = ${genSql.json(result.failures)},
+          update generation_jobs set status = 'failed', error = 'no lines generated',
             usage = ${genSql.json(result.usage)}, updated_at = now() where id = ${jobId}
         `;
-        console.warn(`[generate] ${jobId} failed validation:`, JSON.stringify(result.failures).slice(0, 300));
         return;
+      }
+      if (result.failures.length > 0) {
+        // Draft anyway — §7.7 makes the editor the review step, and FTC
+        // claims are already stripped inside the pipeline. Remaining gates
+        // (density, grounding, pairing) become reviewer warnings.
+        console.warn(`[generate] ${jobId} warnings:`, JSON.stringify(result.failures).slice(0, 300));
       }
 
       await genSql`delete from name_roster where webinar_id = ${webinarId}`;
@@ -277,7 +281,7 @@ const genWorker = new Worker(
       }
       await genSql`
         update generation_jobs set status = 'done',
-          usage = ${genSql.json({ ...result.usage, beats: result.beats })}, updated_at = now()
+          usage = ${genSql.json({ ...result.usage, beats: result.beats, warnings: result.failures })}, updated_at = now()
         where id = ${jobId}
       `;
       console.log(`[generate] ${jobId} done: ${result.lines.length} lines, ${result.beats.length} beats`);

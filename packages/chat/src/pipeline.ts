@@ -372,6 +372,8 @@ export async function runGenerationPipeline(
     audienceSize?: number;
     /** Overrides stage 1 (e.g. voice-compressed audio for oversized videos). */
     transcribeFn?: () => Promise<TranscriptSegment[]>;
+    /** Progress reporter for the admin UI job ticker. */
+    onStage?: (stage: string) => void;
   },
 ): Promise<GenerationResult> {
   const usage = { beats: 0, llmCalls: 0, transcriptHash: "" };
@@ -391,6 +393,8 @@ export async function runGenerationPipeline(
       on conflict (video_hash) do nothing
     `;
   }
+
+  opts.onStage?.("classify");
 
   // 2. beat detection (cached against transcript hash)
   const transcriptHash = sha256(JSON.stringify(segments));
@@ -476,6 +480,7 @@ export async function runGenerationPipeline(
     }
   }
   beats = merged;
+  opts.onStage?.("generate");
 
   if (!opts.useMockBeats) {
     await sql`
@@ -536,6 +541,7 @@ export async function runGenerationPipeline(
     usage.llmCalls++;
     generated.push(...beatLines);
   }
+  opts.onStage?.("validate");
   let lines = repairPersonaSpacing(ensurePairing(mergeLines(rng, [generated]), rng), roster, rng);
   lines = trimToDensity(lines, beats, rng, densityScale);
 
@@ -583,5 +589,6 @@ export async function runGenerationPipeline(
     failures = validateScript(lines, beats, { densityScale }).failures;
   }
 
+  opts.onStage?.("emit");
   return { lines, beats, roster, failures, usage };
 }
