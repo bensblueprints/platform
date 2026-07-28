@@ -27,7 +27,6 @@ test("late join seeks to the wall-clock offset", async ({ page }) => {
   if (waitMs > 0) await new Promise((r) => setTimeout(r, waitMs));
 
   await page.goto(`/room/${token}`);
-  await page.getByRole("button", { name: "Join the session" }).click();
 
   await expect(page.getByTestId("offset-readout")).toBeVisible({ timeout: 30_000 });
   const currentTime = await page.locator("video").evaluate((v: HTMLVideoElement) => v.currentTime);
@@ -38,14 +37,12 @@ test("late join seeks to the wall-clock offset", async ({ page }) => {
 
 test("refresh resumes at the correct point", async ({ page }) => {
   await page.goto(`/room/${token}`);
-  await page.getByRole("button", { name: "Join the session" }).click();
   await expect(page.getByTestId("offset-readout")).toBeVisible({ timeout: 30_000 });
 
   await page.waitForTimeout(4_000);
   const before = await page.locator("video").evaluate((v: HTMLVideoElement) => v.currentTime);
 
   await page.reload();
-  await page.getByRole("button", { name: "Join the session" }).click();
   await expect(page.getByTestId("offset-readout")).toBeVisible({ timeout: 30_000 });
 
   const after = await page.locator("video").evaluate((v: HTMLVideoElement) => v.currentTime);
@@ -56,7 +53,6 @@ test("refresh resumes at the correct point", async ({ page }) => {
 
 test("offset readout tracks wall clock", async ({ page }) => {
   await page.goto(`/room/${token}`);
-  await page.getByRole("button", { name: "Join the session" }).click();
   const readout = page.getByTestId("offset-readout");
   await expect(readout).toBeVisible({ timeout: 30_000 });
 

@@ -16,7 +16,8 @@ function fmt(sec: number): string {
 
 export default function RoomClient({ payload, token }: { payload: RoomPayload; token: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [joined, setJoined] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [mutedStart, setMutedStart] = useState(false);
   const [offers, setOffers] = useState<OfferPayload[]>(payload.offers);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [offset, setOffset] = useState(() =>
@@ -95,17 +96,55 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  async function join() {
+  // Auto-start the moment the session is live — no join gate. Browsers
+  // block unmuted autoplay (spec §16.3), so on rejection we fall back to
+  // muted playback plus a tap-to-unmute button.
+  const live = offset >= 0;
+  useEffect(() => {
+    if (started || !live) return;
     const v = videoRef.current;
     if (!v) return;
-    try {
-      v.currentTime = Math.max(0, offsetSeconds(payload.session.startsAtMs, clock.nowMs()));
-      await v.play();
-      setJoined(true);
-    } catch {
-      // Autoplay policy or a media hiccup blocked playback — leave the
-      // button up so the next click (a fresh user gesture) retries.
-    }
+    let cancelled = false;
+    let done = false;
+    let inFlight = false;
+
+    const attempt = async () => {
+      if (cancelled || done || inFlight) return;
+      inFlight = true;
+      try {
+        v.currentTime = Math.max(0, offsetSeconds(payload.session.startsAtMs, clock.nowMs()));
+        await v.play();
+        done = true;
+        if (!cancelled) setStarted(true);
+      } catch {
+        try {
+          v.muted = true;
+          await v.play();
+          done = true;
+          if (!cancelled) {
+            setStarted(true);
+            setMutedStart(true);
+          }
+        } catch {
+          // Media not ready — retried on the next canplay.
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void attempt();
+    v.addEventListener("canplay", attempt);
+    return () => {
+      cancelled = true;
+      v.removeEventListener("canplay", attempt);
+    };
+  }, [started, live, payload.session.startsAtMs]);
+
+  function unmute() {
+    const v = videoRef.current;
+    if (v) v.muted = false;
+    setMutedStart(false);
   }
 
   async function checkout(offerId: string) {
@@ -145,31 +184,34 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
             videoRef={videoRef}
             title={payload.webinar.title}
           />
-          {!joined ? (
-            offset < 0 ? (
-              <div
-                data-testid="pre-start-gate"
-                className="rounded-lg border border-zinc-700 bg-zinc-900 px-6 py-4 text-center"
-              >
-                <p className="text-lg font-semibold">
-                  Please wait, the webinar will be starting shortly
-                </p>
-                <p className="mt-1 font-mono text-sm text-zinc-400">
-                  Starts in {fmt(-offset)}
-                </p>
-              </div>
-            ) : (
-              <button
-                onClick={join}
-                className="rounded-lg bg-red-600 px-6 py-3 text-lg font-semibold transition-colors hover:bg-red-500"
-              >
-                Join the session
-              </button>
-            )
-          ) : (
+          {offset < 0 ? (
+            <div
+              data-testid="pre-start-gate"
+              className="rounded-lg border border-zinc-700 bg-zinc-900 px-6 py-4 text-center"
+            >
+              <p className="text-lg font-semibold">
+                Please wait, the webinar will be starting shortly
+              </p>
+              <p className="mt-1 font-mono text-sm text-zinc-400">
+                Starts in {fmt(-offset)}
+              </p>
+            </div>
+          ) : started ? (
             <p className="font-mono text-sm text-zinc-400" data-testid="offset-readout">
               {fmt(offset)} / {fmt(payload.webinar.durationSeconds)}
             </p>
+          ) : (
+            <p className="font-mono text-sm text-zinc-400" data-testid="starting-readout">
+              Starting…
+            </p>
+          )}
+          {mutedStart && (
+            <button
+              onClick={unmute}
+              className="rounded-lg bg-red-600 px-6 py-3 text-lg font-semibold transition-colors hover:bg-red-500"
+            >
+              Tap to unmute
+            </button>
           )}
           {offers.map((o) => (
             <OfferPanel
