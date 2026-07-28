@@ -75,8 +75,10 @@ export function createOpenAiClient(opts: {
           }),
         });
         if (res.ok) {
-          const json = (await res.json()) as { choices: { message: { content: string } }[] };
-          return json.choices[0].message.content;
+          const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+          const content = json.choices?.[0]?.message?.content;
+          if (!content) throw new Error("empty completion (provider returned no content)");
+          return content;
         }
         if (res.status !== 401 && res.status !== 403 && attempt < 4) {
           // transient: rate limits, provider flaps (openrouter 404s), 5xx, json-mode 400s
