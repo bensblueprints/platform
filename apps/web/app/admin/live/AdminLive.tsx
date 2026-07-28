@@ -22,7 +22,9 @@ function fmtOffset(sec: number | null): string {
 }
 
 export default function AdminLive() {
-  const key = useSearchParams().get("key") ?? "";
+  const params = useSearchParams();
+  const key = params.get("key") ?? ""; // legacy fallback; session cookie is primary
+  const wantedWebinar = params.get("webinar");
   const [webinars, setWebinars] = useState<{ id: string; slug: string; title: string }[]>([]);
   const [webinarId, setWebinarId] = useState<string | null>(null);
   const [inbox, setInbox] = useState<InboxMessage[]>([]);
@@ -32,19 +34,26 @@ export default function AdminLive() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!key) return;
-    void fetch("/api/admin/webinars", { headers: { "x-admin-key": key } })
-      .then((r) => r.json())
-      .then((j) => {
-        setWebinars(j.webinars ?? []);
-        if (j.webinars?.[0]) setWebinarId(j.webinars[0].id);
+    void fetch("/api/admin/webinars", key ? { headers: { "x-admin-key": key } } : undefined)
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
       })
-      .catch(() => setError("load failed"));
-  }, [key]);
+      .then((j) => {
+        const list = j.webinars ?? [];
+        setWebinars(list);
+        setWebinarId(
+          (cur) => cur ?? list.find((w: { id: string }) => w.id === wantedWebinar)?.id ?? list[0]?.id ?? null,
+        );
+      })
+      .catch(() => setError("could not load webinars — sign in at /login first"));
+  }, [key, wantedWebinar]);
 
   useEffect(() => {
-    if (!key || !webinarId) return;
-    const es = new EventSource(`/api/admin/chat/stream?key=${encodeURIComponent(key)}&webinar_id=${webinarId}`);
+    if (!webinarId) return;
+    const es = new EventSource(
+      `/api/admin/chat/stream?webinar_id=${webinarId}${key ? `&key=${encodeURIComponent(key)}` : ""}`,
+    );
     es.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data) as InboxMessage;
@@ -62,7 +71,7 @@ export default function AdminLive() {
     setDraft("");
     const res = await fetch("/api/admin/chat/reply", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-admin-key": key },
+      headers: { "content-type": "application/json", ...(key ? { "x-admin-key": key } : {}) },
       body: JSON.stringify({
         webinarId,
         registrantId: broadcast ? undefined : replyTo?.registrant_id,
@@ -74,8 +83,6 @@ export default function AdminLive() {
     if (!res.ok) setError(await res.text());
     if (res.ok) setReplyTo(null);
   }
-
-  if (!key) return <main className="p-8 text-sm text-zinc-400">Append ?key=… to use the console.</main>;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-4 p-4">
