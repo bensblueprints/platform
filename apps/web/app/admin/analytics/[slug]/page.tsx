@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { getSharedDb, getWebinarAnalytics } from "@platform/core";
+import { isAdminAuthorized } from "../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +55,12 @@ export default async function AnalyticsPage({
   searchParams: Promise<{ key?: string }>;
 }) {
   const [{ slug }, { key }] = await Promise.all([params, searchParams]);
-  if (!process.env.ADMIN_KEY || key !== process.env.ADMIN_KEY) notFound();
+  const authorized = await isAdminAuthorized(
+    new Request(`https://x/admin/analytics/${slug}${key ? `?key=${key}` : ""}`, {
+      headers: await headers(),
+    }),
+  );
+  if (!authorized) notFound();
 
   const sql = getSharedDb();
   const webinars = await sql<{ id: string; title: string }[]>`
