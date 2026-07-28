@@ -32,7 +32,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       allow_real_chat = coalesce(${body.allowRealChat ?? null}, allow_real_chat),
       chat_variance_pct = coalesce(${body.chatVariancePct ?? null}, chat_variance_pct),
       chat_jitter_seconds = coalesce(${body.chatJitterSeconds ?? null}, chat_jitter_seconds),
-      chat_audience_size = coalesce(${body.chatAudienceSize ?? null}, chat_audience_size)
+      chat_audience_size = coalesce(${body.chatAudienceSize ?? null}, chat_audience_size),
+      waiting_headline = coalesce(${body.waitingHeadline ?? null}, waiting_headline),
+      waiting_body = coalesce(${body.waitingBody ?? null}, waiting_body),
+      waiting_badges = coalesce(${body.waitingBadges ?? null}, waiting_badges)
     where id = ${id}::uuid
     returning id
   `;

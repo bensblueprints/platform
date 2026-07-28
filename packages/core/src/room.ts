@@ -58,15 +58,41 @@ export function toOfferPayload(row: OfferRow): OfferPayload {
 }
 
 export function toRoomPayload(
-  w: Pick<WebinarRow, "title" | "duration_seconds" | "video_url" | "show_attendee_count" | "allow_real_chat">,
+  w: Pick<
+    WebinarRow,
+    | "title"
+    | "duration_seconds"
+    | "video_url"
+    | "show_attendee_count"
+    | "allow_real_chat"
+    | "waiting_headline"
+    | "waiting_body"
+    | "waiting_image_url"
+    | "waiting_badges"
+  >,
   s: Pick<SessionRow, "id" | "starts_at" | "seed">,
   r: Pick<RegistrantRow, "first_name">,
   nowMs: number,
   chat: ChatLine[] = [],
   curve: CurveConfig = DEFAULT_CURVE_CONFIG,
   offers: OfferPayload[] = [],
+  brandfetchId: string | null = null,
 ): RoomPayload {
   const startsAtMs = s.starts_at.getTime();
+  const badges = (w.waiting_badges ?? "")
+    .split(",")
+    .map((b) => b.trim())
+    .filter(Boolean);
+  const waitingRoom =
+    w.waiting_headline || w.waiting_body || w.waiting_image_url || badges.length > 0
+      ? {
+          headline: w.waiting_headline,
+          body: w.waiting_body,
+          imageUrl: w.waiting_image_url,
+          badges,
+          brandfetchId,
+        }
+      : null;
   return {
     webinar: {
       title: w.title,
@@ -75,6 +101,7 @@ export function toRoomPayload(
       showAttendeeCount: w.show_attendee_count ?? true,
       allowRealChat: w.allow_real_chat ?? true,
       curve,
+      waitingRoom,
     },
     session: { id: s.id, startsAtMs, seed: s.seed },
     serverNowMs: nowMs,
@@ -225,5 +252,24 @@ export async function getRoomPayload(sql: Sql, token: string): Promise<RoomPaylo
     select * from offers where webinar_id = ${webinar.id} order by created_at asc
   `;
 
-  return toRoomPayload(webinar, session, reg, Date.now(), chat, curve, offerRows.map(toOfferPayload));
+  let brandfetchId: string | null = null;
+  try {
+    const bf = await sql<{ value: string }[]>`
+      select value from app_settings where key = 'BRANDFETCH_CLIENT_ID' limit 1
+    `;
+    brandfetchId = bf[0]?.value ?? null;
+  } catch {
+    // app_settings is optional; badges fall back to text pills
+  }
+
+  return toRoomPayload(
+    webinar,
+    session,
+    reg,
+    Date.now(),
+    chat,
+    curve,
+    offerRows.map(toOfferPayload),
+    brandfetchId,
+  );
 }

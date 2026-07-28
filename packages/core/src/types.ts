@@ -22,6 +22,10 @@ export interface WebinarRow {
   replay_enabled: boolean | null;
   replay_window_hours: number | null;
   source_session_id: string | null;
+  waiting_headline: string | null;
+  waiting_body: string | null;
+  waiting_image_url: string | null;
+  waiting_badges: string | null;
   created_at: Date;
 }
 
@@ -138,6 +142,13 @@ export interface RoomPayload {
     showAttendeeCount: boolean;
     allowRealChat: boolean;
     curve: CurveConfig;
+    waitingRoom: {
+      headline: string | null;
+      body: string | null;
+      imageUrl: string | null;
+      badges: string[];
+      brandfetchId: string | null;
+    } | null;
   };
   session: { id: string; startsAtMs: number; seed: number };
   serverNowMs: number;

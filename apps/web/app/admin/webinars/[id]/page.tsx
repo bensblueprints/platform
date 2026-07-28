@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSharedDb } from "@platform/core";
-import { AudienceSizeForm, CurveForm, DeleteWebinarButton, ImportChatForm, OfferForm, RosterForm, VideoUpload } from "../../../../components/HubForms";
+import { AudienceSizeForm, CurveForm, DeleteWebinarButton, ImportChatForm, OfferForm, RosterForm, ScheduleForm, VideoUpload, WaitingRoomForm } from "../../../../components/HubForms";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +61,21 @@ export default async function WebinarHub({ params }: { params: Promise<{ id: str
       </header>
 
       <VideoUpload webinarId={w.id} hasVideo={!!w.video_url} duration={w.duration_seconds} />
+      <ScheduleForm
+        webinarId={w.id}
+        mode={w.schedule_mode}
+        interval={w.jit_interval_minutes}
+        lead={w.jit_lead_minutes}
+      />
+      <WaitingRoomForm
+        webinarId={w.id}
+        initial={{
+          headline: w.waiting_headline ?? null,
+          body: w.waiting_body ?? null,
+          imageUrl: w.waiting_image_url ?? null,
+          badges: w.waiting_badges ?? null,
+        }}
+      />
 
       {offers.length > 0 && (
         <section className="rounded-lg bg-zinc-900 p-4">

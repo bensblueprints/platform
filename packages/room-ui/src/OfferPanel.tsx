@@ -119,11 +119,19 @@ export function OfferPanel({
           <button
             data-testid="offer-cta"
             onClick={() => onCheckout(offer.id)}
-            className="rounded-lg bg-amber-400 px-5 py-3 text-center text-base font-bold text-zinc-950 transition-colors hover:bg-amber-300"
+            className="w-full rounded-lg bg-amber-400 px-5 py-3.5 text-center text-lg font-bold text-zinc-950 shadow-lg shadow-amber-400/20 transition-colors hover:bg-amber-300"
           >
             {offer.buttonText}
             {price != null ? ` — ${fmtMoney(price)}` : ""}
           </button>
+          {offer.priceStartCents != null &&
+            offer.priceIncrementCents != null &&
+            offer.priceIncrementCents > 0 && (
+              <p className="text-center text-xs text-zinc-400">
+                Starts at {fmtMoney(offer.priceStartCents)} and goes up{" "}
+                {fmtMoney(offer.priceIncrementCents)} for each purchase
+              </p>
+            )}
         </div>
       )}
     </section>

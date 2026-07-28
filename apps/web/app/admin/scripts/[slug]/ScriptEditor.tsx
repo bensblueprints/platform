@@ -65,6 +65,40 @@ export default function ScriptEditor({
     void load();
   }, [load]);
 
+  const [estimate, setEstimate] = useState<{
+    beats: number;
+    tokens: number;
+    model: string;
+    costLow: number;
+    costHigh: number;
+    audienceSize: number;
+  } | null>(null);
+  const [audience, setAudience] = useState<number | null>(null);
+
+  const loadEstimate = useCallback(async () => {
+    const res = await fetch(`/api/admin/scripts/${webinarId}/estimate`, {
+      headers: { "x-admin-key": adminKey },
+    });
+    if (!res.ok) return;
+    const j = await res.json();
+    setEstimate(j);
+    setAudience(j.audienceSize);
+  }, [webinarId, adminKey]);
+
+  useEffect(() => {
+    void loadEstimate();
+  }, [loadEstimate]);
+
+  async function saveAudience() {
+    if (audience == null) return;
+    await fetch(`/api/admin/webinars/${webinarId}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ chatAudienceSize: audience }),
+    });
+    void loadEstimate();
+  }
+
   async function generate() {
     setNotice("queued…");
     const res = await fetch("/api/admin/generate", {
@@ -179,6 +213,34 @@ export default function ScriptEditor({
         </button>
         {notice && <span className="text-sm text-zinc-400" data-testid="job-notice">{notice}</span>}
       </header>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+        {estimate && (
+          <span data-testid="gen-estimate">
+            Estimated run: ~{estimate.beats} beats · ~{Math.round(estimate.tokens / 1000)}k tokens
+            {estimate.costHigh > 0
+              ? ` · ≈ $${estimate.costLow.toFixed(2)}–$${estimate.costHigh.toFixed(2)}`
+              : ""}{" "}
+            on {estimate.model}
+          </span>
+        )}
+        {audience != null && (
+          <label className="flex items-center gap-1">
+            chat participants
+            <input
+              type="number"
+              min={10}
+              max={5000}
+              value={audience}
+              onChange={(e) => setAudience(Number(e.target.value))}
+              className="w-20 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-0.5 text-white"
+            />
+            <button onClick={saveAudience} className="rounded border border-zinc-600 px-2 py-0.5">
+              save
+            </button>
+          </label>
+        )}
+      </div>
 
       {/* density heatmap */}
       <div className="flex h-6 w-full gap-px overflow-hidden rounded" data-testid="density-strip" title="Lines per minute">

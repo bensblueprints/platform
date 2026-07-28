@@ -1,4 +1,4 @@
-import { closeSync, createReadStream, createWriteStream, existsSync, mkdirSync, openSync, readSync, statSync } from "node:fs";
+import { closeSync, createReadStream, createWriteStream, existsSync, mkdirSync, openSync, readSync, statSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -65,4 +65,33 @@ export function mp4DurationSeconds(filePath: string): number | null {
 /** Open a range-limited read stream for the media route. */
 export function videoStream(webinarId: string, start?: number, end?: number) {
   return createReadStream(videoPath(webinarId), { start, end });
+}
+
+const IMAGE_EXTS = ["jpg", "png", "webp", "gif"] as const;
+
+export function waitingImagePath(webinarId: string, ext: string): string {
+  return path.join(DIR, `${webinarId}-waiting.${ext}`);
+}
+
+export function findWaitingImage(webinarId: string): { path: string; ext: string } | null {
+  for (const ext of IMAGE_EXTS) {
+    const p = waitingImagePath(webinarId, ext);
+    if (existsSync(p)) return { path: p, ext };
+  }
+  return null;
+}
+
+/** Save the waiting-room image, replacing any previous one (any extension). */
+export async function saveWaitingImage(webinarId: string, ext: string, body: ReadableStream): Promise<void> {
+  mkdirSync(DIR, { recursive: true });
+  deleteWaitingImage(webinarId);
+  const nodeStream = Readable.fromWeb(body as any);
+  await pipeline(nodeStream, createWriteStream(waitingImagePath(webinarId, ext)));
+}
+
+export function deleteWaitingImage(webinarId: string): void {
+  for (const ext of IMAGE_EXTS) {
+    const p = waitingImagePath(webinarId, ext);
+    if (existsSync(p)) unlinkSync(p);
+  }
 }

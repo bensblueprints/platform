@@ -19,6 +19,7 @@ const KNOWN_KEYS = [
   "YOUTUBE_COOKIES",
   "PURCHASE_WEBHOOK_SECRET",
   "PUBLIC_ORIGIN",
+  "BRANDFETCH_CLIENT_ID",
 ] as const;
 
 /** Masked view of integration settings (owner Settings page). */

@@ -14,6 +14,45 @@ function fmt(sec: number): string {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/** Known logo domains for common press names; anything else guesses <name>.com. */
+const BADGE_DOMAINS: Record<string, string> = {
+  "product hunt": "producthunt.com",
+  "yahoo finance": "finance.yahoo.com",
+  hackernoon: "hackernoon.com",
+  appsumo: "appsumo.com",
+};
+
+function badgeDomain(name: string): string {
+  const key = name.trim().toLowerCase();
+  return BADGE_DOMAINS[key] ?? `${key.replace(/[^a-z0-9]/g, "")}.com`;
+}
+
+/**
+ * Press badge: BrandFetch logo when a client id is configured (their Logo
+ * Link is meant for public pages), styled text pill otherwise or on error.
+ */
+function PressBadge({ name, clientId }: { name: string; clientId: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!clientId || failed) {
+    return (
+      <span className="rounded-full border border-zinc-600 px-3 py-1 text-xs font-medium uppercase tracking-wide text-zinc-300">
+        {name}
+      </span>
+    );
+  }
+  return (
+    <span className="flex h-7 items-center rounded-full border border-zinc-600 bg-zinc-950 px-3">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`https://cdn.brandfetch.io/${badgeDomain(name)}?c=${clientId}`}
+        alt={name}
+        className="h-4 w-auto"
+        onError={() => setFailed(true)}
+      />
+    </span>
+  );
+}
+
 export default function RoomClient({ payload, token }: { payload: RoomPayload; token: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [started, setStarted] = useState(false);
@@ -187,14 +226,44 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
           {offset < 0 ? (
             <div
               data-testid="pre-start-gate"
-              className="rounded-lg border border-zinc-700 bg-zinc-900 px-6 py-4 text-center"
+              className="overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 text-center"
             >
-              <p className="text-lg font-semibold">
-                Please wait, the webinar will be starting shortly
-              </p>
-              <p className="mt-1 font-mono text-sm text-zinc-400">
-                Starts in {fmt(-offset)}
-              </p>
+              {payload.webinar.waitingRoom?.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={payload.webinar.waitingRoom.imageUrl}
+                  alt=""
+                  className="max-h-56 w-full object-cover"
+                />
+              )}
+              <div className="px-6 py-4">
+                <p className="text-lg font-semibold">
+                  {payload.webinar.waitingRoom?.headline ??
+                    "Please wait, the webinar will be starting shortly"}
+                </p>
+                {payload.webinar.waitingRoom?.body && (
+                  <p className="mt-1 text-sm text-zinc-300">{payload.webinar.waitingRoom.body}</p>
+                )}
+                {payload.webinar.waitingRoom && payload.webinar.waitingRoom.badges.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                      As seen on
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2">
+                      {payload.webinar.waitingRoom.badges.map((name) => (
+                        <PressBadge
+                          key={name}
+                          name={name}
+                          clientId={payload.webinar.waitingRoom!.brandfetchId}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <p className="mt-1 font-mono text-sm text-zinc-400">
+                  Starts in {fmt(-offset)}
+                </p>
+              </div>
             </div>
           ) : started ? (
             <p className="font-mono text-sm text-zinc-400" data-testid="offset-readout">

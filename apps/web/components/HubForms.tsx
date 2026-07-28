@@ -297,6 +297,166 @@ export function AudienceSizeForm({ webinarId, initial }: { webinarId: string; in
   );
 }
 
+export function ScheduleForm({
+  webinarId,
+  mode,
+  interval,
+  lead,
+}: {
+  webinarId: string;
+  mode: string;
+  interval: number | null;
+  lead: number | null;
+}) {
+  const [i, setI] = useState(interval ?? 15);
+  const [l, setL] = useState(lead ?? 5);
+  const [state, setState] = useState<string | null>(null);
+
+  async function save() {
+    setState("saving…");
+    const res = await fetch(`/api/admin/webinars/${webinarId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jitIntervalMinutes: Number(i), jitLeadMinutes: Number(l) }),
+    });
+    setState(res.ok ? "saved" : "failed");
+  }
+
+  return (
+    <section className="rounded-lg bg-zinc-900 p-4">
+      <h2 className="mb-2 font-medium">Schedule</h2>
+      <p className="mb-2 text-xs text-zinc-500">
+        Mode: {mode}. A new session starts every N minutes plus the lead time — the wait a
+        visitor sees is at most N + lead.
+      </p>
+      <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-300">
+        <label>
+          every{" "}
+          <input
+            type="number"
+            min={1}
+            value={i}
+            onChange={(e) => setI(Number(e.target.value))}
+            className="w-16 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-white"
+          />{" "}
+          min
+        </label>
+        <label>
+          lead{" "}
+          <input
+            type="number"
+            min={0}
+            value={l}
+            onChange={(e) => setL(Number(e.target.value))}
+            className="w-16 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-white"
+          />{" "}
+          min
+        </label>
+        <button onClick={save} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium hover:bg-red-500">
+          Save
+        </button>
+        {state && <span className="text-sm text-zinc-400">{state}</span>}
+      </div>
+    </section>
+  );
+}
+
+export function WaitingRoomForm({
+  webinarId,
+  initial,
+}: {
+  webinarId: string;
+  initial: { headline: string | null; body: string | null; imageUrl: string | null; badges: string | null };
+}) {
+  const [headline, setHeadline] = useState(initial.headline ?? "");
+  const [body, setBody] = useState(initial.body ?? "");
+  const [badges, setBadges] = useState(initial.badges ?? "");
+  const [imageUrl, setImageUrl] = useState(initial.imageUrl);
+  const [state, setState] = useState<string | null>(null);
+
+  async function save() {
+    setState("saving…");
+    const res = await fetch(`/api/admin/webinars/${webinarId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ waitingHeadline: headline, waitingBody: body, waitingBadges: badges }),
+    });
+    setState(res.ok ? "saved" : "failed");
+  }
+
+  async function uploadImage(file: File) {
+    setState("uploading image…");
+    const res = await fetch(`/api/admin/webinars/${webinarId}/waiting-image`, {
+      method: "PUT",
+      headers: { "content-type": file.type },
+      body: file,
+    });
+    const j = await res.json().catch(() => ({}));
+    if (res.ok) setImageUrl(j.url ?? null);
+    setState(res.ok ? "image uploaded" : `image failed: ${j.error ?? res.status}`);
+  }
+
+  async function removeImage() {
+    const res = await fetch(`/api/admin/webinars/${webinarId}/waiting-image`, { method: "DELETE" });
+    if (res.ok) setImageUrl(null);
+    setState(res.ok ? "image removed" : "remove failed");
+  }
+
+  return (
+    <section className="rounded-lg bg-zinc-900 p-4">
+      <h2 className="mb-2 font-medium">Waiting room</h2>
+      <p className="mb-2 text-xs text-zinc-500">
+        Shown while visitors wait for the session to start. The countdown always renders beneath
+        your content.
+      </p>
+      <div className="flex flex-col gap-2">
+        <input
+          value={headline}
+          onChange={(e) => setHeadline(e.target.value)}
+          placeholder='Headline (default: "Please wait, the webinar will be starting shortly")'
+          className={input}
+        />
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="Description (optional — a line or two under the headline)"
+          rows={2}
+          className={input}
+        />
+        <input
+          value={badges}
+          onChange={(e) => setBadges(e.target.value)}
+          placeholder="As seen on, comma-separated (e.g. Product Hunt, Yahoo Finance, AppSumo). Add a BrandFetch client ID in Settings for real logos."
+          className={input}
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            onChange={(e) => e.target.files?.[0] && void uploadImage(e.target.files[0])}
+            className="text-sm text-zinc-300 file:mr-3 file:rounded file:border-0 file:bg-zinc-700 file:px-3 file:py-1.5 file:text-white"
+          />
+          {imageUrl && (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imageUrl} alt="waiting room" className="h-12 rounded" />
+              <button onClick={removeImage} className="text-xs text-red-300 hover:underline">
+                remove
+              </button>
+            </>
+          )}
+        </div>
+        <div>
+          <button onClick={save} className={btn}>
+            Save waiting room
+          </button>
+          {state && <span className="ml-3 text-sm text-zinc-400">{state}</span>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function DeleteWebinarButton({ webinarId, title }: { webinarId: string; title: string }) {
   const [state, setState] = useState<string | null>(null);
 

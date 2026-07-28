@@ -36,7 +36,8 @@ Legacy fallback domain `https://webinar-platform.212.28.184.24.sslip.io` serves 
 
 `/admin/settings` — all third-party keys live here, stored in the platform database, shown masked, never logged. Blank fields are left unchanged.
 
-- **AI script generation:** `INFERENCE_BASE_URL` (any OpenAI-compatible endpoint — OpenAI, Groq, Together, local rig), `INFERENCE_API_KEY`, optional `INFERENCE_MODEL` / `TRANSCRIBE_MODEL`. Until these are set, the generator uses a deterministic mock (real structure, placeholder text).
+- **AI script generation:** `INFERENCE_BASE_URL` + `INFERENCE_API_KEY` — for OpenRouter use `https://openrouter.ai/api` and your `sk-or-v1-…` key (any OpenAI-compatible endpoint works: OpenAI, Groq, Together, a local rig). `INFERENCE_MODEL` picks the generation model (suggestions provided; any model slug the endpoint serves is accepted). Until these are set, the generator uses a deterministic mock (real structure, placeholder text).
+- **BrandFetch (optional):** `BRANDFETCH_CLIENT_ID` — with it, "as seen on" badges in the waiting room render real brand logos via BrandFetch's Logo Link; without it they render as styled text badges.
 - **GoHighLevel:** `GHL_API_KEY` + `GHL_LOCATION_ID` — registrants get upserted with webinar tags and GHL runs reminders.
 - **Stripe:** `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` — enable native Stripe Checkout; leave blank and use offer Button URLs.
 
@@ -46,9 +47,18 @@ Legacy fallback domain `https://webinar-platform.212.28.184.24.sslip.io` serves 
 
 - **Title / subtitle** — shown on the registration page.
 - **Schedule mode:**
-  - **Just-in-time (JIT):** the registration page always offers the next slot (`ceil(now / interval) + lead`). Use 15 min interval / 5 min lead for the classic "starting in a few minutes" feel.
+  - **Just-in-time (JIT):** the registration page always offers the next slot (`ceil(now / interval) + lead`). Tune **interval** and **lead** any time on the manage page → Schedule — the longest a visitor ever waits is interval + lead (e.g. 5 + 1 = 6 minutes max).
   - **Recurring:** fixed weekdays + times in a named timezone (e.g. Mon/Wed/Fri 10:00 America/Chicago). A background worker materializes sessions 14 days ahead automatically.
   - **On-demand:** the session starts the moment the viewer joins.
+
+## 3b. The waiting room (JIT)
+
+Visitors who arrive before start see the waiting room: your content plus a live countdown, with chat held back until the script actually begins. Customize it on the manage page → **Waiting room**:
+
+- **Headline** — defaults to "Please wait, the webinar will be starting shortly".
+- **Description** — a line or two under the headline.
+- **Image** — upload any png/jpg/webp/gif; it renders above the headline. Replace or remove any time.
+- **As seen on** — comma-separated press names (e.g. `Product Hunt, Yahoo Finance, AppSumo`) rendered as a badge strip. With a BrandFetch client ID in Settings they render as real logos; otherwise styled text badges. Only list outlets that have actually featured you — invented press mentions are an FTC problem, not a growth hack.
 
 ## 4. Get the video in
 
@@ -58,25 +68,22 @@ Three options on the manage page:
 - **YouTube:** paste a public or unlisted YouTube URL — it's downloaded as your own mp4 and plays in our player with no YouTube branding. PRIVATE videos need your YouTube cookies in `/admin/settings` → YouTube.
 - **Direct upload:** mp4 up to ~100MB (Cloudflare caps proxied uploads there — that's why a 1GB file fails; use Import from URL instead).
 
-Duration is detected automatically; the file persists on the server across redeploys.
-
-## 4b. Upload the video
-
-On the webinar's manage page (`/admin/webinars/[id]`):
-
-- Upload your **mp4** recording. It lands on a persistent volume on the server; the duration is detected automatically from the file.
-- The video is served with HTTP range requests, so late joiners start mid-stream correctly. (This is the job R2 takes over later — zero-egress — once Cloudflare credentials are plugged in; nothing you need to do then.)
+Duration is detected automatically; the file persists on the server across redeploys (persistent volume), and it's served with HTTP range requests so late joiners start mid-stream correctly. (This is the job R2 takes over later — zero-egress — once Cloudflare credentials are plugged in; nothing you need to do then.)
 
 ## 5. Get a chat script
 
 Two ways, both on the manage page or the script editor:
 
 **A. Generate it (recommended).** `/admin/scripts/[slug]` → **Generate script**. The pipeline transcribes your video, splits it into beats (intro/teaching/story/pitch/offer…), invents 20–40 audience personas with names and typing styles, and writes chat that references what the presenter actually says — every audience question gets an admin answer within 90 seconds. It lands as a **draft**, never live until you publish.
-- Edit any line inline, retime it (`mm:ss`), or reassign its persona.
-- **Regenerate beat** rewrites one beat (e.g. a weak "story" beat) and leaves everything else — including your hand edits — alone.
-- **Diff vs live** shows what changed.
-- **Publish draft** swaps it into the room.
-- **Download CSV** exports the EverWebinar 7-column format.
+
+The flow for a new webinar, end to end:
+
+1. Put your OpenRouter key in `/admin/settings` and pick a generation model (suggestions in the field).
+2. On the script editor, check the **estimated run** line before generating — beats, rough token count, and a cost range on your model.
+3. Set **chat participants** (right there on the script editor, or on the manage page) — it scales how busy the room feels and how large the persona roster is.
+4. **Generate script**, then review: edit any line inline, retime it (`mm:ss`), or reassign its persona.
+5. **Regenerate beat** rewrites one beat (e.g. a weak "story" beat) and leaves everything else — including your hand edits — alone. **Diff vs live** shows what changed.
+6. **Publish draft** swaps it into the room. **Download CSV** exports the EverWebinar 7-column format.
 
 **B. Import an existing script.** Paste an EverWebinar/WebinarJam CSV export into the import box (on the manage page). The format is `Hour,Minute,Second,Name,Role,Message,Mode` with an optional header. Malformed rows are rejected with the row number and EverWebinar's own error vocabulary. Lines that look like earnings claims in attendee mouths get flagged as FTC warnings (they import, but you should delete them — see §11).
 
@@ -129,6 +136,9 @@ The price ladder only rises on real sales. Point the offer's Button URL at your 
 ## 10. Room behavior worth knowing
 
 - Everything timed (chat, offer, count) follows the **server clock**, not the video player. Refreshing or joining late always lands at the correct point. Scrubbing the video does nothing.
+- **Playback starts by itself** the moment the session goes live (or immediately for late joiners) — there is no join button. Browsers only block *sound* on autoplay, so if sound is blocked the video plays muted with a **Tap to unmute** button.
+- The room is a fixed shell: the video and chat never move and the page never grows — the chat scrolls inside its own rail like a normal chat app.
+- Scripted chat lands ~3s after its raw transcript second so each line matches the on-screen moment, and late joiners periodically ask what's happening — the regulars in the script answer them.
 - The attendee count is simulated on a curve you control (manage page → curve settings). It never hits zero and never drops during the ramp.
 - Seeded chat varies per session (drop + jitter on a per-session seed) and `{{name}}` tokens resolve against your roster — repeat viewers never see an identical room.
 - Chat input is on by default (`allow_real_chat`); turn it off in settings if you want a fully scripted room.

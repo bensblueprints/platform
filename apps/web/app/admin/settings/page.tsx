@@ -9,14 +9,26 @@ interface SettingRow {
   source: "settings" | "env" | null;
 }
 
-const SECTIONS: { title: string; note: string; keys: { key: string; label: string; placeholder: string }[] }[] = [
+const SECTIONS: { title: string; note: string; keys: { key: string; label: string; placeholder: string; suggestions?: string[] }[] }[] = [
   {
     title: "AI script generation",
-    note: "Any OpenAI-compatible endpoint (OpenAI, Groq, Together, or a local rig). Leave blank to keep the mock generator.",
+    note: "Any OpenAI-compatible endpoint — for OpenRouter use https://openrouter.ai/api as the base URL and paste your sk-or-v1-… key. Leave blank to keep the mock generator.",
     keys: [
-      { key: "INFERENCE_BASE_URL", label: "Base URL", placeholder: "https://api.openai.com (or https://api.groq.com/openai)" },
-      { key: "INFERENCE_API_KEY", label: "API key", placeholder: "sk-…" },
-      { key: "INFERENCE_MODEL", label: "Chat model (optional)", placeholder: "gpt-4o-mini / llama-3.3-70b-versatile" },
+      { key: "INFERENCE_BASE_URL", label: "Base URL", placeholder: "https://openrouter.ai/api" },
+      { key: "INFERENCE_API_KEY", label: "API key", placeholder: "sk-or-v1-… (OpenRouter) or any OpenAI-compatible key" },
+      {
+        key: "INFERENCE_MODEL",
+        label: "Generation model",
+        placeholder: "meta-llama/llama-3.3-70b-instruct",
+        suggestions: [
+          "meta-llama/llama-3.3-70b-instruct",
+          "openai/gpt-4o-mini",
+          "google/gemini-2.0-flash-001",
+          "anthropic/claude-3.5-haiku",
+          "mistralai/mistral-small-3.1-24b-instruct",
+          "qwen/qwen-2.5-72b-instruct",
+        ],
+      },
       { key: "TRANSCRIBE_MODEL", label: "Transcription model (optional)", placeholder: "whisper-1" },
     ],
   },
@@ -59,6 +71,13 @@ const SECTIONS: { title: string; note: string; keys: { key: string; label: strin
       { key: "YOUTUBE_COOKIES", label: "YouTube cookies (Netscape format)", placeholder: "# Netscape HTTP Cookie File…" },
     ],
   },
+  {
+    title: "BrandFetch (waiting-room logos)",
+    note: "Optional. With a client ID, 'as seen on' badges in the waiting room render real brand logos via BrandFetch's Logo Link; without one they render as styled text badges. Free ID at brandfetch.com.",
+    keys: [
+      { key: "BRANDFETCH_CLIENT_ID", label: "Client ID", placeholder: "your BrandFetch client id" },
+    ],
+  },
 ];
 
 export default function SettingsPage() {
@@ -98,7 +117,7 @@ export default function SettingsPage() {
             <h2 className="font-medium">{section.title}</h2>
             <p className="mb-3 text-xs text-zinc-500">{section.note}</p>
             <div className="flex flex-col gap-3">
-              {section.keys.map(({ key, label, placeholder }) => {
+              {section.keys.map(({ key, label, placeholder, suggestions }) => {
                 const r = row(key);
                 return (
                   <label key={key} className="flex flex-col gap-1 text-sm">
@@ -112,12 +131,20 @@ export default function SettingsPage() {
                       )}
                     </span>
                     <input
-                      type="password"
+                      type={suggestions ? "text" : "password"}
+                      list={suggestions ? `${key}-suggestions` : undefined}
                       placeholder={placeholder}
                       value={values[key] ?? ""}
                       onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
                       className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white placeholder-zinc-600 focus:border-red-500 focus:outline-none"
                     />
+                    {suggestions && (
+                      <datalist id={`${key}-suggestions`}>
+                        {suggestions.map((s) => (
+                          <option key={s} value={s} />
+                        ))}
+                      </datalist>
+                    )}
                   </label>
                 );
               })}
