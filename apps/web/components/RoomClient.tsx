@@ -168,7 +168,7 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-4 p-4">
+    <main className="mx-auto flex h-dvh max-w-6xl flex-col gap-4 overflow-hidden p-4">
       <StatusBar
         title={payload.webinar.title}
         showCount={payload.webinar.showAttendeeCount}
@@ -177,8 +177,8 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
         curve={payload.webinar.curve}
         seed={payload.session.seed}
       />
-      <div className="grid flex-1 gap-4 md:grid-cols-[1fr_320px]">
-        <div className="flex flex-col gap-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 md:grid md:grid-cols-[1fr_320px] md:grid-rows-[minmax(0,1fr)]">
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
           <Player
             videoUrl={payload.webinar.videoUrl ?? ""}
             videoRef={videoRef}
