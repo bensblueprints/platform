@@ -1,4 +1,5 @@
 import { getSharedDb } from "@platform/core";
+import { isAdminAuthorized } from "../../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,7 @@ function csvEscape(s: string): string {
 
 /** Draft script as the standard 7-column EverWebinar CSV (spec §7.2 stage 7). */
 export async function GET(req: Request, { params }: { params: Promise<{ webinarId: string }> }) {
-  const key = process.env.ADMIN_KEY;
-  const url = new URL(req.url);
-  if (!key || (req.headers.get("x-admin-key") !== key && url.searchParams.get("key") !== key)) {
+  if (!(await isAdminAuthorized(req))) {
     return new Response("not found", { status: 404 });
   }
   const { webinarId } = await params;

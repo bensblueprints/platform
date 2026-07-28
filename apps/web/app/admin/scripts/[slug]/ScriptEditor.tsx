@@ -50,11 +50,15 @@ export default function ScriptEditor({
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/admin/scripts/${webinarId}`, { headers: { "x-admin-key": adminKey } });
+    if (!res.ok) {
+      setNotice(res.status === 404 ? "not authorized — sign out and back in" : `load failed (${res.status})`);
+      return;
+    }
     const j = await res.json();
-    setDraft(j.draft);
-    setLive(j.live);
-    setRoster(j.roster);
-    setJob(j.lastJob);
+    setDraft(j.draft ?? []);
+    setLive(j.live ?? []);
+    setRoster(j.roster ?? []);
+    setJob(j.lastJob ?? null);
   }, [webinarId, adminKey]);
 
   useEffect(() => {
@@ -78,6 +82,11 @@ export default function ScriptEditor({
       const s = await fetch(`/api/admin/generate/${jobId}`, { headers: { "x-admin-key": adminKey } }).then((r) =>
         r.json(),
       );
+      if (!s.status) {
+        clearInterval(poll);
+        setNotice("status check failed — reload the page");
+        return;
+      }
       setNotice(`job ${s.status}${s.stage ? ` (${s.stage})` : ""}`);
       if (s.status === "done" || s.status === "failed") {
         clearInterval(poll);
@@ -112,6 +121,11 @@ export default function ScriptEditor({
       const s = await fetch(`/api/admin/generate/${j.jobId}`, { headers: { "x-admin-key": adminKey } }).then((r) =>
         r.json(),
       );
+      if (!s.status) {
+        clearInterval(poll);
+        setNotice("status check failed — reload the page");
+        return;
+      }
       if (s.status === "done" || s.status === "failed") {
         clearInterval(poll);
         setNotice(s.status === "done" ? `${beatType} regenerated` : `failed: ${String(s.error).slice(0, 200)}`);

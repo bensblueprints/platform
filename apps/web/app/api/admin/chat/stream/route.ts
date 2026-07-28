@@ -1,23 +1,16 @@
 import { getSharedDb } from "@platform/core";
+import { isAdminAuthorized } from "../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const sql = getSharedDb();
 
-function authorized(req: Request): boolean {
-  const key = process.env.ADMIN_KEY;
-  if (!key) return false;
-  const url = new URL(req.url);
-  return req.headers.get("x-admin-key") === key || url.searchParams.get("key") === key;
-}
-
 /**
  * Moderator unified inbox stream (SSE, spec §11): every real message for
  * the webinar with attendee name, join offset, and current offset.
- * Interim auth: ADMIN_KEY env (real auth lands with the tenant spec).
  */
 export async function GET(req: Request) {
-  if (!authorized(req)) return new Response("not found", { status: 404 });
+  if (!(await isAdminAuthorized(req))) return new Response("not found", { status: 404 });
 
   const webinarId = new URL(req.url).searchParams.get("webinar_id");
   if (!webinarId) return new Response("bad request", { status: 400 });

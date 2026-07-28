@@ -1,4 +1,5 @@
 import { getSharedDb } from "@platform/core";
+import { isAdminAuthorized } from "../../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -6,8 +7,7 @@ const sql = getSharedDb();
 
 /** Inline line edit (spec §7.7): retime, reassign persona, edit text. Marks the line hand-edited. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ webinarId: string }> }) {
-  const key = process.env.ADMIN_KEY;
-  if (!key || req.headers.get("x-admin-key") !== key) {
+  if (!(await isAdminAuthorized(req))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
   const { webinarId } = await params;

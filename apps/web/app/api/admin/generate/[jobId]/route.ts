@@ -1,4 +1,5 @@
 import { getSharedDb } from "@platform/core";
+import { isAdminAuthorized } from "../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -6,8 +7,7 @@ const sql = getSharedDb();
 
 /** Generation job status (spec §7.7 editor polling). */
 export async function GET(req: Request, { params }: { params: Promise<{ jobId: string }> }) {
-  const key = process.env.ADMIN_KEY;
-  if (!key || req.headers.get("x-admin-key") !== key) {
+  if (!(await isAdminAuthorized(req))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
   const { jobId } = await params;

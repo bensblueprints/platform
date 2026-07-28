@@ -1,4 +1,5 @@
 import { getSharedDb } from "@platform/core";
+import { isAdminAuthorized } from "../../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,7 @@ const sql = getSharedDb();
  * in one transaction.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ webinarId: string }> }) {
-  const key = process.env.ADMIN_KEY;
-  if (!key || req.headers.get("x-admin-key") !== key) {
+  if (!(await isAdminAuthorized(req))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
   const { webinarId } = await params;
