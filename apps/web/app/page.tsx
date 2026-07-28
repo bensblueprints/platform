@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { getSessionUser } from "../lib/auth";
+import AuthForm from "../components/AuthForm";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +126,33 @@ export default async function Home() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section id="admin-login" className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-6">
+        {user ? (
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">You're signed in</h2>
+              <p className="text-sm text-zinc-400">{user.email}</p>
+            </div>
+            <Link
+              href="/admin"
+              className="rounded-lg bg-red-600 px-6 py-3 font-semibold transition-colors hover:bg-red-500"
+            >
+              Open dashboard
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-col items-start gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">Admin login</h2>
+              <p className="text-sm text-zinc-400">
+                Sign in to create webinars, generate chat, moderate rooms, and see analytics.
+              </p>
+            </div>
+            <AuthForm mode="login" />
+          </div>
+        )}
       </section>
 
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-6 text-sm text-zinc-500">
