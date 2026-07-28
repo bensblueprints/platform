@@ -98,9 +98,14 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
   async function join() {
     const v = videoRef.current;
     if (!v) return;
-    v.currentTime = Math.max(0, offsetSeconds(payload.session.startsAtMs, clock.nowMs()));
-    await v.play();
-    setJoined(true);
+    try {
+      v.currentTime = Math.max(0, offsetSeconds(payload.session.startsAtMs, clock.nowMs()));
+      await v.play();
+      setJoined(true);
+    } catch {
+      // Autoplay policy or a media hiccup blocked playback — leave the
+      // button up so the next click (a fresh user gesture) retries.
+    }
   }
 
   async function checkout(offerId: string) {
@@ -141,12 +146,26 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
             title={payload.webinar.title}
           />
           {!joined ? (
-            <button
-              onClick={join}
-              className="rounded-lg bg-red-600 px-6 py-3 text-lg font-semibold transition-colors hover:bg-red-500"
-            >
-              Join the session
-            </button>
+            offset < 0 ? (
+              <div
+                data-testid="pre-start-gate"
+                className="rounded-lg border border-zinc-700 bg-zinc-900 px-6 py-4 text-center"
+              >
+                <p className="text-lg font-semibold">
+                  Please wait, the webinar will be starting shortly
+                </p>
+                <p className="mt-1 font-mono text-sm text-zinc-400">
+                  Starts in {fmt(-offset)}
+                </p>
+              </div>
+            ) : (
+              <button
+                onClick={join}
+                className="rounded-lg bg-red-600 px-6 py-3 text-lg font-semibold transition-colors hover:bg-red-500"
+              >
+                Join the session
+              </button>
+            )
           ) : (
             <p className="font-mono text-sm text-zinc-400" data-testid="offset-readout">
               {fmt(offset)} / {fmt(payload.webinar.durationSeconds)}

@@ -46,7 +46,7 @@ export default async function ConfirmedPage({
       {when ? (
         <>
           <p className="text-xl" data-testid="confirmed-time">
-            {when}
+            Auto-starts {when}
           </p>
           <a
             href={`/api/ics/${token}`}

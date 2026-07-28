@@ -1,6 +1,8 @@
 import type { Sql } from "./db";
 import { applySessionVariance, resolveNameTokens } from "@platform/chat";
 import { currentPriceCents, nextPriceCents } from "@platform/offers";
+import { nextJitSlotMs } from "@platform/timeline";
+import { materializeRecurringSessions } from "./schedule";
 import {
   DEFAULT_CURVE_CONFIG,
   type ChatLine,
@@ -84,10 +86,78 @@ export function toRoomPayload(
 }
 
 /**
- * Resolves the registrant by access token and their session. On-demand
- * webinars create the session lazily on first room hit (spec §10); the
- * conditional update makes that creation race-safe.
- * Returns null for unknown tokens.
+ * Finds or creates the registrant's watchable session (spec §10). JIT slots
+ * are shared per (webinar_id, starts_at); on-demand sessions are per
+ * registrant. A session that already ended is recycled into the next one, so
+ * an old join link always lands in a live or upcoming room instead of a
+ * redirect out of it.
+ */
+async function ensureSession(
+  sql: Sql,
+  reg: RegistrantRow,
+  webinar: WebinarRow,
+): Promise<SessionRow | null> {
+  if (reg.session_id) {
+    const rows = await sql<SessionRow[]>`
+      select * from sessions where id = ${reg.session_id} limit 1
+    `;
+    const existing = rows[0];
+    if (existing && Date.now() - existing.starts_at.getTime() < webinar.duration_seconds * 1000) {
+      return existing;
+    }
+  }
+
+  if (webinar.schedule_mode === "recurring") {
+    let next = await sql<SessionRow[]>`
+      select * from sessions where webinar_id = ${webinar.id} and starts_at >= now()
+      order by starts_at asc limit 1
+    `;
+    if (!next[0]) {
+      await materializeRecurringSessions(sql);
+      next = await sql<SessionRow[]>`
+        select * from sessions where webinar_id = ${webinar.id} and starts_at >= now()
+        order by starts_at asc limit 1
+      `;
+    }
+    if (!next[0]) return null;
+    await sql`update registrants set session_id = ${next[0].id} where id = ${reg.id}`;
+    return next[0];
+  }
+
+  const startsAtIso =
+    webinar.schedule_mode === "jit"
+      ? new Date(
+          nextJitSlotMs(
+            Date.now(),
+            webinar.jit_interval_minutes ?? 15,
+            webinar.jit_lead_minutes ?? 5,
+          ),
+        ).toISOString()
+      : new Date().toISOString();
+
+  // jit shares one row per slot; ondemand gets a fresh row per registrant.
+  // The unique index on (webinar_id, starts_at) makes both race-safe.
+  const created = await sql<SessionRow[]>`
+    insert into sessions (webinar_id, starts_at, seed)
+    values (${webinar.id}, ${startsAtIso}, floor(random() * 2147483647))
+    on conflict (webinar_id, starts_at) do nothing
+    returning *
+  `;
+  const session =
+    created[0] ??
+    (
+      await sql<SessionRow[]>`
+        select * from sessions where webinar_id = ${webinar.id} and starts_at = ${startsAtIso} limit 1
+      `
+    )[0];
+  if (!session) return null;
+  await sql`update registrants set session_id = ${session.id} where id = ${reg.id}`;
+  return session;
+}
+
+/**
+ * Resolves the registrant by access token and their session via
+ * ensureSession. Returns null for unknown tokens.
  */
 export async function getRoomPayload(sql: Sql, token: string): Promise<RoomPayload | null> {
   const regs = await sql<RegistrantRow[]>`
@@ -102,32 +172,7 @@ export async function getRoomPayload(sql: Sql, token: string): Promise<RoomPaylo
   const webinar = ws[0];
   if (!webinar) return null;
 
-  let sessionId = reg.session_id;
-  if (!sessionId) {
-    const created = await sql<{ id: string }[]>`
-      insert into sessions (webinar_id, starts_at, seed)
-      values (${reg.webinar_id}, now(), floor(random() * 2147483647))
-      returning id
-    `;
-    const updated = await sql`
-      update registrants set session_id = ${created[0].id}
-      where id = ${reg.id} and session_id is null
-    `;
-    if (updated.count === 0) {
-      const again = await sql<RegistrantRow[]>`
-        select * from registrants where id = ${reg.id} limit 1
-      `;
-      sessionId = again[0]?.session_id ?? null;
-    } else {
-      sessionId = created[0].id;
-    }
-  }
-  if (!sessionId) return null;
-
-  const sessions = await sql<SessionRow[]>`
-    select * from sessions where id = ${sessionId} limit 1
-  `;
-  const session = sessions[0];
+  const session = await ensureSession(sql, reg, webinar);
   if (!session) return null;
 
   const chatRows = await sql<ChatScriptRow[]>`
