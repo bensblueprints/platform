@@ -5,9 +5,8 @@ import { isAdminAuthorized } from "../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
-const DAILY_GENERATION_CAP = Number(process.env.GENERATION_DAILY_CAP ?? 10);
-
-/** Enqueue a script generation run (spec §7.2/§7.8). */
+/** Enqueue a script generation run (spec §7.2/§7.8). Single-owner platform
+ * with the owner's own inference key — no generation cap. */
 export async function POST(req: Request) {
   if (!(await isAdminAuthorized(req))) {
     return Response.json({ error: "not_found" }, { status: 404 });
@@ -21,14 +20,6 @@ export async function POST(req: Request) {
   if (!body.webinarId) return Response.json({ error: "bad_request" }, { status: 400 });
 
   const sql = getSharedDb();
-  const today = await sql<{ c: number }[]>`
-    select count(*)::int as c from generation_jobs
-    where webinar_id = ${body.webinarId}::uuid and created_at > now() - interval '24 hours'
-  `;
-  if (today[0].c >= DAILY_GENERATION_CAP) {
-    return Response.json({ error: "generation_cap_reached", cap: DAILY_GENERATION_CAP }, { status: 429 });
-  }
-
   const inserted = await sql<{ id: string }[]>`
     insert into generation_jobs (webinar_id, status, stage)
     values (${body.webinarId}::uuid, 'queued', ${body.mode === "regen-beat" ? "regen-beat" : "queued"})
