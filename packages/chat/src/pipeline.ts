@@ -209,9 +209,13 @@ async function generateBeatLines(
     return []; // graceful: a dropped chunk costs density, not the job
   }
 
-  const halves = target > 8 ? [Math.ceil(target / 2), Math.floor(target / 2)] : [target];
+  // per-call asks capped at 12 lines: bigger asks reliably under-deliver —
+  // the model writes a handful and stops, or the JSON truncates (measured:
+  // 60-line asks returned ~5 lines; 12-line asks return 12)
+  const chunks: number[] = [];
+  for (let left = target; left > 0; left -= 12) chunks.push(Math.min(12, left));
   let parsed: { name: string; mode: string; text: string }[] = [];
-  for (const count of halves) {
+  for (const count of chunks) {
     parsed.push(...(await generateChunk(count)));
   }
   const offsets = burstOffsets(rng, parsed.length, beat.start + 3, Math.max(beat.start + 10, beat.end - 3));
