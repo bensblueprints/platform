@@ -76,7 +76,10 @@ export function createOpenAiClient(opts: {
               model: chatModel,
               messages,
               temperature: 0.9,
-              max_tokens: 4096,
+              // thinking models (gemini-2.5) burn reasoning tokens from the
+              // same budget — 4096 truncates the JSON mid-object
+              max_tokens: 16384,
+              ...(base.includes("openrouter.ai") ? { reasoning: { exclude: true } } : {}),
               ...(genOpts?.json ? { response_format: { type: "json_object" } } : {}),
             }),
           });
