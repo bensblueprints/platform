@@ -145,7 +145,7 @@ export default function ChatRail({
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex-1 space-y-2 overflow-y-auto px-3 py-2"
+        className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2"
         data-testid="chat-scroll"
         aria-live="polite"
       >

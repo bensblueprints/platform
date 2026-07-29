@@ -25,6 +25,19 @@ export default async function WebinarHub({ params }: { params: Promise<{ id: str
     select display_name from name_roster where webinar_id = ${id}::uuid order by display_name asc
   `;
 
+  const registrants = await sql`
+    select r.email, r.first_name, r.registered_at, count(a.id)::int as joins
+    from registrants r
+    left join attendances a on a.registrant_id = r.id
+    where r.webinar_id = ${id}::uuid
+    group by r.id
+    order by r.registered_at desc
+    limit 50
+  `;
+  const regCount = await sql<{ c: number }[]>`
+    select count(*)::int as c from registrants where webinar_id = ${id}::uuid
+  `;
+
   const curveInitial = curve[0]
     ? {
         peakCount: curve[0].peak_count,
@@ -59,6 +72,51 @@ export default async function WebinarHub({ params }: { params: Promise<{ id: str
           </Link>
         </div>
       </header>
+
+      <section className="rounded-lg bg-zinc-900 p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-medium">Registrants ({regCount[0].c})</h2>
+          <a
+            href={`/api/admin/webinars/${id}/registrants?download=1`}
+            className="rounded border border-zinc-600 px-3 py-1 text-xs hover:bg-zinc-800"
+          >
+            Download CSV (names + emails)
+          </a>
+        </div>
+        <div className="max-h-64 overflow-y-auto text-sm">
+          <table className="w-full text-left">
+            <thead className="text-xs text-zinc-500">
+              <tr>
+                <th className="py-1 pr-4">Email</th>
+                <th className="pr-4">Name</th>
+                <th className="pr-4">Registered</th>
+                <th>Attended</th>
+              </tr>
+            </thead>
+            <tbody>
+              {registrants.map((r: any) => (
+                <tr key={`${r.email}-${r.registered_at}`} className="border-t border-zinc-800">
+                  <td className="py-1 pr-4">{r.email}</td>
+                  <td className="pr-4">{r.first_name ?? "—"}</td>
+                  <td className="pr-4 text-zinc-400">{new Date(r.registered_at).toLocaleString()}</td>
+                  <td>{r.joins > 0 ? "✓" : "—"}</td>
+                </tr>
+              ))}
+              {registrants.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-2 text-zinc-500">
+                    No registrants yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-2 text-xs text-zinc-500">
+          Latest 50 shown — the CSV has everyone: phone, timezone, session time, seconds watched,
+          UTM tags.
+        </p>
+      </section>
 
       <VideoUpload webinarId={w.id} hasVideo={!!w.video_url} duration={w.duration_seconds} />
       <ScheduleForm

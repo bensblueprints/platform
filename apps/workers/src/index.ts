@@ -48,6 +48,18 @@ const worker = new Worker(
 
 const execFileP = promisify(execFile);
 
+/** JSON.stringify result sanitized for Postgres jsonb: lone surrogates
+ * (emoji split by a 60-char slice in validation details) are replaced with
+ * U+FFFD — they serialize to invalid UTF-8 and jsonb rejects the whole write. */
+function jsonForDb(value: unknown): unknown {
+  return JSON.parse(
+    JSON.stringify(value).replace(
+      /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+      "\uFFFD",
+    ),
+  );
+}
+
 /** yt-dlp a YouTube video into the shared video volume, then wire the webinar. */
 async function importYoutube(sql: ReturnType<typeof createDb>, webinarId: string, url: string) {
   const out = `/data/videos/${webinarId}.mp4`;
@@ -288,7 +300,7 @@ const genWorker = new Worker(
         }
         await genSql`
           update generation_jobs set status = 'done',
-            usage = ${genSql.json({ ...result.usage, regenBeat: beatType, warnings: result.failures })}, updated_at = now()
+            usage = ${genSql.json(jsonForDb({ ...result.usage, regenBeat: beatType, warnings: result.failures }))}, updated_at = now()
           where id = ${jobId}
         `;
         console.log(`[generate] ${jobId} regen-beat ${beatType}: ${newLines.length} lines`);
@@ -349,7 +361,7 @@ const genWorker = new Worker(
       }
       await genSql`
         update generation_jobs set status = 'done',
-          usage = ${genSql.json({ ...result.usage, beats: result.beats, warnings: result.failures })}, updated_at = now()
+          usage = ${genSql.json(jsonForDb({ ...result.usage, beats: result.beats, warnings: result.failures }))}, updated_at = now()
         where id = ${jobId}
       `;
       console.log(`[generate] ${jobId} done: ${result.lines.length} lines, ${result.beats.length} beats`);
