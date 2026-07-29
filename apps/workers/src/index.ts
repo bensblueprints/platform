@@ -4,7 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { mp4DurationSeconds } from "./video-storage.js";
-import { cleanupDeadSessions, createDb, getSetting, materializeRecurringSessions } from "@platform/core";
+import { cleanupDeadSessions, createDb, getSetting, getTenantSetting, getPlatformTenantId, materializeRecurringSessions } from "@platform/core";
 import { activeAdapters, resolvePostSessionKind, type NotificationPayload } from "@platform/notifications";
 import { createInferenceFromSettings, runGenerationPipeline, sha256 } from "@platform/chat";
 
@@ -185,11 +185,14 @@ const genWorker = new Worker(
       await genSql`update generation_jobs set status = 'running', stage = 'transcribe', updated_at = now() where id = ${jobId}`;
       try {
         const ws = await genSql<any[]>`
-          select id, video_url from webinars where id = ${webinarId}::uuid limit 1
+          select id, video_url, tenant_id from webinars where id = ${webinarId}::uuid limit 1
         `;
         const w = ws[0];
         if (!w?.video_url) throw new Error("webinar has no video_url");
-        const inference = await createInferenceFromSettings((k) => getSetting(genSql, k));
+        const platformTenantId = await getPlatformTenantId(genSql);
+        const inference = await createInferenceFromSettings((k) =>
+          getTenantSetting(genSql, w.tenant_id ?? null, k, platformTenantId),
+        );
         const videoHash = sha256(w.video_url);
         const cached = await genSql<any[]>`
           select transcript from transcript_cache where video_hash = ${videoHash} limit 1
@@ -225,13 +228,16 @@ const genWorker = new Worker(
     await genSql`update generation_jobs set status = 'running', stage = 'transcribe', updated_at = now() where id = ${jobId}`;
     try {
       const ws = await genSql<any[]>`
-        select id, video_url, duration_seconds, chat_audience_size from webinars where id = ${webinarId}::uuid limit 1
+        select id, video_url, duration_seconds, chat_audience_size, tenant_id from webinars where id = ${webinarId}::uuid limit 1
       `;
       const w = ws[0];
       if (!w?.video_url) throw new Error("webinar has no video_url");
 
-      const inference = await createInferenceFromSettings((k) => getSetting(genSql, k));
-      const mockBeats = ((await getSetting(genSql, "INFERENCE_BASE_URL")) ?? "mock") === "mock";
+      const platformTenantId = await getPlatformTenantId(genSql);
+      const tenantLookup = (k: string) =>
+        getTenantSetting(genSql, w.tenant_id ?? null, k, platformTenantId);
+      const inference = await createInferenceFromSettings(tenantLookup);
+      const mockBeats = ((await tenantLookup("INFERENCE_BASE_URL")) ?? "mock") === "mock";
 
       const transcribeFn = makeTranscribeFn(inference, genSql, webinarId, w.video_url);
 

@@ -1,5 +1,5 @@
 import { unlinkSync, existsSync } from "node:fs";
-import { isAdminAuthorized } from "../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../lib/auth";
 import { getSharedDb } from "@platform/core";
 import { videoPath } from "../../../../../lib/video-storage";
 
@@ -9,10 +9,12 @@ const sql = getSharedDb();
 
 /** Update webinar basics + room toggles (hub settings). */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { id } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, id))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as any;
 
   const days = Array.isArray(body.recurringDays) ? body.recurringDays.map(Number) : undefined;
@@ -45,10 +47,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 /** Delete a webinar and everything attached (FK cascades) plus the video file. */
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { id } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, id))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { id } = await params;
 
   const deleted = await sql`
     delete from webinars where id = ${id}::uuid returning id, slug

@@ -1,4 +1,4 @@
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 import { getSharedDb } from "@platform/core";
 import { saveBadgeImage } from "../../../../../../lib/video-storage";
 
@@ -21,10 +21,12 @@ const EXT_BY_TYPE: Record<string, string> = {
  * logo exists for a badge.
  */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { id } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, id))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { id } = await params;
   const name = new URL(req.url).searchParams.get("name")?.trim();
   if (!name || name.length > 60) return Response.json({ error: "bad_name" }, { status: 400 });
   const ext = EXT_BY_TYPE[(req.headers.get("content-type") ?? "").split(";")[0]];

@@ -151,6 +151,13 @@ export default async function Home() {
               </p>
             </div>
             <AuthForm mode="login" />
+            <p className="text-sm text-zinc-400">
+              No account yet?{" "}
+              <Link href="/signup" className="font-medium text-red-300 hover:underline">
+                Create one free
+              </Link>{" "}
+              — run a webinar with your own OpenRouter key, upgrade any time.
+            </p>
           </div>
         )}
       </section>

@@ -1,13 +1,17 @@
 import { getSharedDb } from "@platform/core";
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const sql = getSharedDb();
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthorized(req))) return Response.json({ error: "not_found" }, { status: 404 });
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
   const { id } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, id))) {
+    return Response.json({ error: "not_found" }, { status: 404 });
+  }
   const rows = await sql`
     select display_name from name_roster where webinar_id = ${id}::uuid order by display_name asc
   `;
@@ -16,8 +20,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 /** Replace the roster from a plain list of names (one per line). */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthorized(req))) return Response.json({ error: "not_found" }, { status: 404 });
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
   const { id } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, id))) {
+    return Response.json({ error: "not_found" }, { status: 404 });
+  }
   const b = (await req.json().catch(() => ({}))) as { names?: string[] };
   const names = (b.names ?? []).map((n) => n.trim()).filter(Boolean).slice(0, 200);
 

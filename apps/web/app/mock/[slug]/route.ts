@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSharedDb } from "@platform/core";
-import { isAdminAuthorized } from "../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +10,8 @@ export const dynamic = "force-dynamic";
  * without registering. /mock/<slug> → redirect into the room.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
-    return new Response("not found", { status: 404 });
-  }
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return new Response("not found", { status: 404 });
   const { slug } = await params;
 
   const sql = getSharedDb();
@@ -20,7 +19,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     select id from webinars where slug = ${slug} limit 1
   `;
   const w = webinars[0];
-  if (!w) return new Response("not found", { status: 404 });
+  if (!w || !(await canAccessWebinar(sql, scopedUser, w.id))) {
+    return new Response("not found", { status: 404 });
+  }
 
   const token = crypto.randomUUID();
   const session = await sql<{ id: string }[]>`

@@ -1,24 +1,40 @@
-import { getSharedDb } from "@platform/core";
-import { isAdminAuthorized } from "../../../../lib/auth";
+import { getSharedDb, getPlatformTenantId } from "@platform/core";
+import { getScopedUser } from "../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const sql = getSharedDb();
 
 export async function GET(req: Request) {
-  if (!(await isAdminAuthorized(req))) {
-    return Response.json({ error: "not_found" }, { status: 404 });
-  }
-  const rows = await sql`
-    select id, slug, title, schedule_mode from webinars order by created_at asc
-  `;
+  const user = await getScopedUser(req);
+  if (!user) return Response.json({ error: "not_found" }, { status: 404 });
+
+  const rows =
+    user.role === "platform"
+      ? await sql`select id, slug, title, schedule_mode from webinars order by created_at asc`
+      : await sql`
+          select id, slug, title, schedule_mode from webinars
+          where tenant_id = ${user.tenantId}::uuid order by created_at asc
+        `;
   return Response.json({ webinars: rows });
 }
 
-/** Create a webinar (owner dashboard). */
+/** Create a webinar. Free plan: one webinar (upgrade for more). */
 export async function POST(req: Request) {
-  if (!(await isAdminAuthorized(req))) {
-    return Response.json({ error: "not_found" }, { status: 404 });
+  const user = await getScopedUser(req);
+  if (!user) return Response.json({ error: "not_found" }, { status: 404 });
+
+  const tenantId = user.tenantId ?? (await getPlatformTenantId(sql));
+  if (user.role !== "platform" && user.plan === "free") {
+    const existing = await sql<{ c: number }[]>`
+      select count(*)::int as c from webinars where tenant_id = ${tenantId}::uuid
+    `;
+    if (existing[0].c >= 1) {
+      return Response.json(
+        { error: "free_plan_limit", detail: "Free plan includes one webinar — upgrade for unlimited." },
+        { status: 403 },
+      );
+    }
   }
 
   const body = (await req.json().catch(() => ({}))) as any;
@@ -41,10 +57,10 @@ export async function POST(req: Request) {
 
   const inserted = await sql<{ id: string; slug: string }[]>`
     insert into webinars (
-      slug, title, subtitle, broadcast_mode, schedule_mode, duration_seconds,
+      tenant_id, slug, title, subtitle, broadcast_mode, schedule_mode, duration_seconds,
       jit_interval_minutes, jit_lead_minutes, recurring_days, recurring_times, timezone
     ) values (
-      ${slug}, ${title}, ${body.subtitle ?? null}, 'evergreen', ${mode}, ${Number(body.durationSeconds ?? 3600)},
+      ${tenantId}, ${slug}, ${title}, ${body.subtitle ?? null}, 'evergreen', ${mode}, ${Number(body.durationSeconds ?? 3600)},
       ${Number(body.jitIntervalMinutes ?? 15)}, ${Number(body.jitLeadMinutes ?? 5)},
       ${days}, ${times}, ${body.timezone ?? "UTC"}
     )

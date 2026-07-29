@@ -84,12 +84,15 @@ export default function SettingsPage() {
   const [rows, setRows] = useState<SettingRow[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
 
   async function load() {
     const res = await fetch("/api/admin/settings");
     if (!res.ok) return;
-    const rows = (await res.json()).settings as SettingRow[];
+    const j = await res.json();
+    const rows = j.settings as SettingRow[];
     setRows(rows);
+    setRole(j.role ?? null);
     // pre-fill the fields with what's actually stored so keys are visible
     // and editable in place
     setValues((prev) => {
@@ -115,12 +118,13 @@ export default function SettingsPage() {
   }
 
   const row = (key: string) => rows.find((r) => r.key === key);
+  const sections = SECTIONS.filter((s) => role === "platform" || s.title === "AI script generation");
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
       <form onSubmit={save} className="flex flex-col gap-6">
-        {SECTIONS.map((section) => (
+        {sections.map((section) => (
           <section key={section.title} className="rounded-lg bg-zinc-900 p-4">
             <h2 className="font-medium">{section.title}</h2>
             <p className="mb-3 text-xs text-zinc-500">{section.note}</p>

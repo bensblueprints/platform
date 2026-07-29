@@ -1,5 +1,5 @@
 import { getSharedDb } from "@platform/core";
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +11,12 @@ const sql = getSharedDb();
  * in one transaction.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ webinarId: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { webinarId } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, webinarId))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { webinarId } = await params;
 
   const result = await sql.begin(async (tx) => {
     const drafts = await tx`

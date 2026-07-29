@@ -25,8 +25,8 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
     }
     const body = await res.json().catch(() => ({}));
     setError(
-      body.error === "signup_closed"
-        ? "An account already exists — sign in instead."
+      body.error === "signup_closed" || body.error === "email_taken"
+        ? "That email already has an account — sign in instead."
         : body.error === "invalid_credentials"
           ? "Wrong email or password."
           : "Check your email and a password of 8+ characters.",

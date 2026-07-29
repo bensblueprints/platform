@@ -1,6 +1,6 @@
 import { getSharedDb } from "@platform/core";
 import { sha256 } from "@platform/chat";
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +14,12 @@ function fmtTs(sec: number): string {
 /** The webinar's cached transcript: JSON segments, or a timestamped .txt
  * download for feeding into any external LLM (§7.2 stage 1 as a product). */
 export async function GET(req: Request, { params }: { params: Promise<{ webinarId: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { webinarId } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, webinarId))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { webinarId } = await params;
 
   const rows = await sql<{ video_url: string | null }[]>`
     select video_url from webinars where id = ${webinarId}::uuid limit 1

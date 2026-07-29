@@ -1,5 +1,5 @@
 import { getSharedDb } from "@platform/core";
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 import { lintAttendeeLines, parseChatCsv } from "@platform/chat";
 
 export const dynamic = "force-dynamic";
@@ -8,8 +8,12 @@ const sql = getSharedDb();
 
 /** Admin CSV import (same parser as the dev endpoint; session/key auth). */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthorized(req))) return Response.json({ error: "not_found" }, { status: 404 });
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
   const { id } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, id))) {
+    return Response.json({ error: "not_found" }, { status: 404 });
+  }
   const url = new URL(req.url);
   const replace = url.searchParams.get("replace") === "1";
 

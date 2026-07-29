@@ -1,5 +1,5 @@
 import { getSharedDb } from "@platform/core";
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +12,12 @@ function csvEscape(s: string): string {
 /** Registrant list with attendance (names + emails for follow-up sequences).
  * JSON by default; ?download=1 for CSV. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { id } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, id))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { id } = await params;
 
   const rows = await sql<any[]>`
     select r.email, r.first_name, r.phone, r.timezone, r.registered_at, r.utm,

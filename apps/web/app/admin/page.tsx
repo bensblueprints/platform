@@ -13,11 +13,19 @@ export default async function AdminHome() {
   // middleware already gates this route (session cookie or ?key=)
 
   const sql = getSharedDb();
-  const webinars = await sql`
-    select w.id, w.slug, w.title, w.schedule_mode, w.video_url,
-           (select count(*) from registrants r where r.webinar_id = w.id)::int as registrants
-    from webinars w order by w.created_at desc
-  `;
+  const webinars =
+    user?.role === "platform"
+      ? await sql`
+          select w.id, w.slug, w.title, w.schedule_mode, w.video_url,
+                 (select count(*) from registrants r where r.webinar_id = w.id)::int as registrants
+          from webinars w order by w.created_at desc
+        `
+      : await sql`
+          select w.id, w.slug, w.title, w.schedule_mode, w.video_url,
+                 (select count(*) from registrants r where r.webinar_id = w.id)::int as registrants
+          from webinars w where w.tenant_id = ${user?.tenantId ?? null}::uuid
+          order by w.created_at desc
+        `;
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
@@ -25,6 +33,14 @@ export default async function AdminHome() {
         <h1 className="text-2xl font-semibold">Webinars</h1>
         <div className="flex items-center gap-3">
           {user && <span className="text-sm text-zinc-400">{user.email}</span>}
+          {user && user.role !== "platform" && (
+            <Link
+              href="/admin/upgrade"
+              className="rounded-lg border border-amber-400/50 px-3 py-2 text-sm text-amber-300 hover:bg-zinc-800"
+            >
+              {user.plan === "free" ? "Upgrade" : `Plan: ${user.plan}`}
+            </Link>
+          )}
           <Link href="/admin/settings" className="rounded-lg border border-zinc-600 px-4 py-2 text-sm hover:bg-zinc-800">
             Settings
           </Link>

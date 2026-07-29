@@ -1,4 +1,4 @@
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 import { getSharedDb } from "@platform/core";
 import { mp4DurationSeconds, saveVideo } from "../../../../../../lib/video-storage";
 
@@ -11,10 +11,12 @@ const sql = getSharedDb();
  * the duration from the mvhd box, and wires the webinar to the media route.
  */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { id } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, id))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { id } = await params;
   if (!req.body) return Response.json({ error: "no_file" }, { status: 400 });
 
   const webinars = await sql<{ id: string }[]>`

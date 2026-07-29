@@ -39,3 +39,50 @@ export function mask(value: string | null): string | null {
   if (value.length <= 8) return "••••••••";
   return `${value.slice(0, 4)}••••${value.slice(-4)}`;
 }
+
+/** Per-tenant settings (BYOK): a tenant's own keys live in tenant_settings;
+ * the platform tenant falls back to the global app_settings/env. */
+export async function getTenantSetting(
+  sql: Sql,
+  tenantId: string | null,
+  key: string,
+  platformTenantId: string | null,
+): Promise<string | null> {
+  if (tenantId && tenantId !== platformTenantId) {
+    const rows = await sql<{ value: string }[]>`
+      select value from tenant_settings where tenant_id = ${tenantId} and key = ${key} limit 1
+    `;
+    return rows[0]?.value ?? null;
+  }
+  return getSetting(sql, key);
+}
+
+export async function setTenantSettings(
+  sql: Sql,
+  tenantId: string,
+  entries: Record<string, string>,
+): Promise<void> {
+  for (const [key, value] of Object.entries(entries)) {
+    if (value === "") continue;
+    await sql`
+      insert into tenant_settings (tenant_id, key, value) values (${tenantId}, ${key}, ${value})
+      on conflict (tenant_id, key) do update set value = excluded.value, updated_at = now()
+    `;
+  }
+}
+
+export async function deleteTenantSetting(sql: Sql, tenantId: string, key: string): Promise<void> {
+  await sql`delete from tenant_settings where tenant_id = ${tenantId} and key = ${key}`;
+}
+
+/** The single platform tenant (backfilled in 0016), cached per process. */
+let platformTenant: { id: string } | null = null;
+export async function getPlatformTenantId(sql: Sql): Promise<string | null> {
+  if (platformTenant) return platformTenant.id;
+  const rows = await sql<{ id: string }[]>`
+    select t.id from tenants t join users u on u.tenant_id = t.id
+    where u.role = 'platform' order by t.created_at asc limit 1
+  `;
+  platformTenant = rows[0] ?? null;
+  return platformTenant?.id ?? null;
+}

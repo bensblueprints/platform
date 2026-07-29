@@ -1,5 +1,5 @@
 import { getSharedDb } from "@platform/core";
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +11,12 @@ function csvEscape(s: string): string {
 
 /** Draft script as the standard 7-column EverWebinar CSV (spec §7.2 stage 7). */
 export async function GET(req: Request, { params }: { params: Promise<{ webinarId: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return new Response("not found", { status: 404 });
+  const { webinarId } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, webinarId))) {
     return new Response("not found", { status: 404 });
   }
-  const { webinarId } = await params;
 
   const rows = await sql`
     select offset_seconds, display_name, role, message, mode

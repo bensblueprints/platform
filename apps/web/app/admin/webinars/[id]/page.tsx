@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { getSharedDb } from "@platform/core";
+import { getSessionUser, canAccessWebinar } from "../../../../lib/auth";
 import { AudienceSizeForm, CurveForm, DeleteWebinarButton, ImportChatForm, OfferForm, RosterForm, ScheduleForm, VideoUpload, WaitingRoomForm } from "../../../../components/HubForms";
 
 export const dynamic = "force-dynamic";
@@ -8,10 +10,11 @@ export const dynamic = "force-dynamic";
 export default async function WebinarHub({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const sql = getSharedDb();
+  const user = await getSessionUser(new Request("https://x/", { headers: await headers() }));
 
   const rows = await sql<any[]>`select * from webinars where id = ${id}::uuid limit 1`;
   const w = rows[0];
-  if (!w) notFound();
+  if (!w || !user || !(await canAccessWebinar(sql, user, id))) notFound();
 
   const offers = await sql`
     select id, name, headline, start_offset_seconds, units_sold, price_start_cents

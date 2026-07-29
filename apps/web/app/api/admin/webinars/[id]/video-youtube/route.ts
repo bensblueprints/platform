@@ -1,7 +1,7 @@
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 import { getSharedDb } from "@platform/core";
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +12,12 @@ const sql = getSharedDb();
  * unlisted videos; private videos need YOUTUBE_COOKIES in Settings.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { id } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, id))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as { url?: string };
   const url = body.url ?? "";
   if (!/(youtube\.com|youtu\.be)/.test(url)) {

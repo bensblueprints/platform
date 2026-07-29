@@ -1,5 +1,5 @@
 import { getSharedDb } from "@platform/core";
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -7,10 +7,12 @@ const sql = getSharedDb();
 
 /** Inline line edit (spec §7.7): retime, reassign persona, edit text. Marks the line hand-edited. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ webinarId: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { webinarId } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, webinarId))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { webinarId } = await params;
   const body = (await req.json().catch(() => ({}))) as {
     id?: string;
     offsetSeconds?: number;

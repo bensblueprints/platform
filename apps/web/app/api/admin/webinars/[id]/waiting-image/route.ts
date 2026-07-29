@@ -1,4 +1,4 @@
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 import { getSharedDb } from "@platform/core";
 import { deleteWaitingImage, saveWaitingImage } from "../../../../../../lib/video-storage";
 
@@ -15,10 +15,12 @@ const EXT_BY_TYPE: Record<string, string> = {
 
 /** Waiting-room image upload (raw body = the image, content-type image/*). */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { id } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, id))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { id } = await params;
   const ext = EXT_BY_TYPE[(req.headers.get("content-type") ?? "").split(";")[0]];
   if (!ext) return Response.json({ error: "unsupported_type" }, { status: 415 });
   if (!req.body) return Response.json({ error: "no_file" }, { status: 400 });
@@ -38,10 +40,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
 /** Remove the waiting-room image. */
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { id } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, id))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { id } = await params;
   deleteWaitingImage(id);
   await sql`update webinars set waiting_image_url = null where id = ${id}::uuid`;
   return Response.json({ ok: true });

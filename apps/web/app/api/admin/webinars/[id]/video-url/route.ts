@@ -1,4 +1,4 @@
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 import { getSharedDb } from "@platform/core";
 import { mp4DurationSeconds, saveVideo, videoPath } from "../../../../../../lib/video-storage";
 
@@ -14,10 +14,12 @@ const MAX_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB
  * cap): the VPS downloads the file directly from any reachable URL.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { id } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, id))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as { url?: string };
   const url = body.url ?? "";
 

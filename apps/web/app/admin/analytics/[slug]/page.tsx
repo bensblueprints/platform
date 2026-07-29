@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { getSharedDb, getWebinarAnalytics } from "@platform/core";
-import { isAdminAuthorized } from "../../../../lib/auth";
+import { getSessionUser, canAccessWebinar } from "../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -54,20 +54,14 @@ export default async function AnalyticsPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ key?: string }>;
 }) {
-  const [{ slug }, { key }] = await Promise.all([params, searchParams]);
-  const authorized = await isAdminAuthorized(
-    new Request(`https://x/admin/analytics/${slug}${key ? `?key=${key}` : ""}`, {
-      headers: await headers(),
-    }),
-  );
-  if (!authorized) notFound();
-
+  const [{ slug }] = await Promise.all([params, searchParams]);
   const sql = getSharedDb();
+  const user = await getSessionUser(new Request("https://x/", { headers: await headers() }));
   const webinars = await sql<{ id: string; title: string }[]>`
     select id, title from webinars where slug = ${slug} limit 1
   `;
   const w = webinars[0];
-  if (!w) notFound();
+  if (!w || !user || !(await canAccessWebinar(sql, user, w.id))) notFound();
 
   const a = await getWebinarAnalytics(sql, w.id);
 

@@ -1,5 +1,5 @@
 import { getSharedDb } from "@platform/core";
-import { isAdminAuthorized } from "../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -7,10 +7,12 @@ const sql = getSharedDb();
 
 /** Editor data (spec §7.7): draft + live lines, roster, latest beats. */
 export async function GET(req: Request, { params }: { params: Promise<{ webinarId: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { webinarId } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, webinarId))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { webinarId } = await params;
 
   const lines = await sql`
     select id, offset_seconds, display_name, role, message, mode, sort_order, source, status

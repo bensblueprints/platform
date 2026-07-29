@@ -1,5 +1,5 @@
 import { getSharedDb } from "@platform/core";
-import { isAdminAuthorized } from "../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +11,8 @@ const sql = getSharedDb();
  * webinar sees it).
  */
 export async function POST(req: Request) {
-  if (!(await isAdminAuthorized(req))) {
-    return Response.json({ error: "not_found" }, { status: 404 });
-  }
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
 
   const body = (await req.json().catch(() => ({}))) as {
     registrantId?: string;
@@ -29,21 +28,30 @@ export async function POST(req: Request) {
   let registrantId: string | null = null;
 
   if (body.broadcast) {
+    if (
+      !body.webinarId ||
+      !(await canAccessWebinar(sql, scopedUser, body.webinarId))
+    ) {
+      return Response.json({ error: "not_found" }, { status: 404 });
+    }
     // pick any active session of the webinar to carry the broadcast row
     const rows = await sql<{ id: string }[]>`
       select id from sessions
-      where webinar_id = ${body.webinarId ?? ""}::uuid and status = 'scheduled'
+      where webinar_id = ${body.webinarId}::uuid and status = 'scheduled'
       order by starts_at desc limit 1
     `;
     sessionId = rows[0]?.id ?? null;
     if (!sessionId) return Response.json({ error: "no_active_session" }, { status: 409 });
   } else {
     if (!body.registrantId) return Response.json({ error: "bad_request" }, { status: 400 });
-    const regs = await sql<{ id: string; session_id: string }[]>`
-      select id, session_id from registrants where id = ${body.registrantId}::uuid limit 1
+    const regs = await sql<{ id: string; session_id: string; webinar_id: string }[]>`
+      select id, session_id, webinar_id from registrants where id = ${body.registrantId}::uuid limit 1
     `;
     const reg = regs[0];
     if (!reg) return Response.json({ error: "not_found" }, { status: 404 });
+    if (!(await canAccessWebinar(sql, scopedUser, reg.webinar_id))) {
+      return Response.json({ error: "not_found" }, { status: 404 });
+    }
     registrantId = reg.id;
     sessionId = sessionId ?? reg.session_id;
     if (!sessionId) return Response.json({ error: "no_active_session" }, { status: 409 });

@@ -1,6 +1,6 @@
 import { getSharedDb } from "@platform/core";
 import { sha256 } from "@platform/chat";
-import { isAdminAuthorized } from "../../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +24,12 @@ const PRICING: [string, number, number][] = [
  * generation_jobs.usage.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ webinarId: string }> }) {
-  if (!(await isAdminAuthorized(req))) {
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return Response.json({ error: "not_found" }, { status: 404 });
+  const { webinarId } = await params;
+  if (!(await canAccessWebinar(sql, scopedUser, webinarId))) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
-  const { webinarId } = await params;
 
   const rows = await sql<
     { duration_seconds: number; chat_audience_size: number | null; video_url: string | null }[]

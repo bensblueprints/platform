@@ -1,5 +1,5 @@
 import { getSharedDb } from "@platform/core";
-import { isAdminAuthorized } from "../../../../../lib/auth";
+import { getScopedUser, canAccessWebinar } from "../../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +10,14 @@ const sql = getSharedDb();
  * the webinar with attendee name, join offset, and current offset.
  */
 export async function GET(req: Request) {
-  if (!(await isAdminAuthorized(req))) return new Response("not found", { status: 404 });
+  const scopedUser = await getScopedUser(req);
+  if (!scopedUser) return new Response("not found", { status: 404 });
 
   const webinarId = new URL(req.url).searchParams.get("webinar_id");
   if (!webinarId) return new Response("bad request", { status: 400 });
+  if (!(await canAccessWebinar(sql, scopedUser, webinarId))) {
+    return new Response("not found", { status: 404 });
+  }
 
   const encoder = new TextEncoder();
   let closed = false;
