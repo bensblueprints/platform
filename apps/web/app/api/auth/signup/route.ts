@@ -27,6 +27,19 @@ export async function POST(req: Request) {
       values (${body.name?.trim() || email.split("@")[0]}, 'free', 'active')
       returning id
     `;
+    // pay-first: a WHOP purchase made with this email before signup attaches now
+    const claims = await tx<{ plan: "lifetime" | "monthly"; whop_membership_id: string | null }[]>`
+      update pending_plan_claims set claimed_at = now()
+      where email = ${email} and claimed_at is null
+      returning plan, whop_membership_id
+    `;
+    const claim = claims[0];
+    if (claim) {
+      await tx`
+        update tenants set plan = ${claim.plan}, status = 'active', whop_membership_id = ${claim.whop_membership_id}
+        where id = ${t[0].id}
+      `;
+    }
     const u = await tx<{ id: string }[]>`
       insert into users (email, password_hash, tenant_id, role)
       values (${email}, ${hashPassword(password)}, ${t[0].id}, 'owner')
@@ -36,5 +49,11 @@ export async function POST(req: Request) {
   });
 
   const { token, expires } = await createSession(userId);
-  return Response.json({ ok: true }, { headers: { "set-cookie": sessionCookie(token, expires) } });
+  const claimed = await sql<{ plan: string }[]>`
+    select t.plan from users u join tenants t on t.id = u.tenant_id where u.id = ${userId}::uuid limit 1
+  `;
+  return Response.json(
+    { ok: true, plan: claimed[0]?.plan ?? "free" },
+    { headers: { "set-cookie": sessionCookie(token, expires) } },
+  );
 }

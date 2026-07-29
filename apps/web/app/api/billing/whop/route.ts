@@ -60,10 +60,21 @@ export async function POST(req: Request) {
     select id, tenant_id from users where email = ${email.toLowerCase()} limit 1
   `;
   const user = users[0];
+
+  // Pay-first flow (WHOP checkout is the signup): no account yet — store the
+  // claim; it attaches automatically when the buyer signs up with this email.
   if (!user?.tenant_id) {
-    // buyer has no account yet — they can sign up with the same email and
-    // the next webhook replay (or a manual re-run) will attach the plan
-    return Response.json({ ok: false, reason: "no_account_for_email" }, { status: 202 });
+    if (action.includes("activated") || action === "payment_succeeded") {
+      await sql`
+        insert into pending_plan_claims (email, plan, whop_membership_id)
+        values (${email.toLowerCase()}, ${plan}, ${membershipId ?? null})
+        on conflict (email) do update set plan = excluded.plan,
+          whop_membership_id = excluded.whop_membership_id, created_at = now(), claimed_at = null
+      `;
+      console.log(`[whop] ${action}: ${email} -> pending ${plan} claim stored`);
+      return Response.json({ ok: true, pending: true, plan });
+    }
+    return Response.json({ ok: true, ignored: action });
   }
 
   if (action.includes("activated") || action === "payment_succeeded") {
