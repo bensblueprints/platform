@@ -377,7 +377,7 @@ export async function runGenerationPipeline(
     /** Overrides stage 1 (e.g. voice-compressed audio for oversized videos). */
     transcribeFn?: () => Promise<TranscriptSegment[]>;
     /** Progress reporter for the admin UI job ticker. */
-    onStage?: (stage: string) => void;
+    onStage?: (stage: string, info?: Record<string, unknown>) => void;
     /** Raw per-beat lines as they are written (editor live view). */
     onBeatLines?: (beatType: string, lines: GenLine[]) => void;
   },
@@ -486,7 +486,7 @@ export async function runGenerationPipeline(
     }
   }
   beats = merged;
-  opts.onStage?.("generate");
+  opts.onStage?.("generate", { beats: beats.length });
 
   if (!opts.useMockBeats) {
     await sql`
@@ -548,9 +548,10 @@ export async function runGenerationPipeline(
     generated.push(...beatLines);
     opts.onBeatLines?.(beat.type, beatLines);
   }
-  opts.onStage?.("validate");
+  opts.onStage?.("merge", { raw: generated.length });
   let lines = repairPersonaSpacing(ensurePairing(mergeLines(rng, [generated]), rng), roster, rng);
   lines = trimToDensity(lines, beats, rng, densityScale);
+  opts.onStage?.("validate", { lines: lines.length });
 
   // Top-up: if organic volume is below the density band's floor, generate
   // once more for the sparsest beat before validating (§7.4). Persona
@@ -575,16 +576,24 @@ export async function runGenerationPipeline(
   if (failures.length > 0) {
     const failingBeatTypes = [...new Set(failures.map((f) => f.beat).filter(Boolean))] as BeatType[];
     for (const bt of failingBeatTypes) {
-      const beat = targetBeats.find((b) => b.type === bt);
-      if (!beat) continue;
-      const without = lines.filter((l) => l.beat !== bt);
-      const regen = await generateBeatLines(
-        inference, beat, roster, without, rng, personaUsage, densityScale,
-        beat.type === "offer" || beat.type === "pitch" ? offerTerms : undefined,
-      );
-      usage.llmCalls++;
-      lines = ensurePairing(mergeLines(rng, [[...without, ...regen]]), rng);
+      // regenerate each failing beat individually, scoped by offset range —
+      // filtering by type alone would wipe sibling beats of the same type
+      // (five 'teaching' beats share one type tag)
+      for (const beat of targetBeats.filter((b) => b.type === bt)) {
+        const without = lines.filter(
+          (l) => !(l.beat === bt && l.offsetSeconds >= beat.start && l.offsetSeconds <= beat.end),
+        );
+        const regen = await generateBeatLines(
+          inference, beat, roster, without, rng, personaUsage, densityScale,
+          beat.type === "offer" || beat.type === "pitch" ? offerTerms : undefined,
+        );
+        usage.llmCalls++;
+        lines = ensurePairing(mergeLines(rng, [[...without, ...regen]]), rng);
+      }
     }
+    // regen disturbs spacing and density — repair both before re-validating
+    lines = repairPersonaSpacing(lines, roster, rng);
+    lines = trimToDensity(lines, beats, rng, densityScale);
     failures = validateScript(lines, beats, { densityScale }).failures;
   }
 
@@ -596,6 +605,6 @@ export async function runGenerationPipeline(
     failures = validateScript(lines, beats, { densityScale }).failures;
   }
 
-  opts.onStage?.("emit");
+  opts.onStage?.("emit", { lines: lines.length, failures: failures.length });
   return { lines, beats, roster, failures, usage };
 }
