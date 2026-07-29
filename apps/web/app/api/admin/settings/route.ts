@@ -1,4 +1,4 @@
-import { getSharedDb, mask, setSettings, deleteSetting } from "@platform/core";
+import { getSharedDb, setSettings, deleteSetting } from "@platform/core";
 import { isAdminAuthorized } from "../../../../lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,8 @@ const KNOWN_KEYS = [
   "BRANDFETCH_CLIENT_ID",
 ] as const;
 
-/** Masked view of integration settings (owner Settings page). */
+/** Full view of integration settings (single-owner platform, admin session
+ * required — the owner needs to see and edit their own keys). */
 export async function GET(req: Request) {
   if (!(await isAdminAuthorized(req))) return Response.json({ error: "not_found" }, { status: 404 });
 
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
 
   const settings = KNOWN_KEYS.map((key) => {
     const value = map.get(key) ?? process.env[key] ?? null;
-    return { key, set: value != null, masked: mask(value), source: map.has(key) ? "settings" : process.env[key] ? "env" : null };
+    return { key, set: value != null, value, source: map.has(key) ? "settings" : process.env[key] ? "env" : null };
   });
   return Response.json({ settings });
 }

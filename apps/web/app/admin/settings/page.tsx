@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 interface SettingRow {
   key: string;
   set: boolean;
-  masked: string | null;
+  value: string | null;
   source: "settings" | "env" | null;
 }
 
@@ -87,7 +87,16 @@ export default function SettingsPage() {
 
   async function load() {
     const res = await fetch("/api/admin/settings");
-    if (res.ok) setRows((await res.json()).settings);
+    if (!res.ok) return;
+    const rows = (await res.json()).settings as SettingRow[];
+    setRows(rows);
+    // pre-fill the fields with what's actually stored so keys are visible
+    // and editable in place
+    setValues((prev) => {
+      const next = { ...prev };
+      for (const r of rows) if (r.value != null && next[r.key] === undefined) next[r.key] = r.value;
+      return next;
+    });
   }
   useEffect(() => {
     void load();
@@ -102,7 +111,6 @@ export default function SettingsPage() {
       body: JSON.stringify(values),
     });
     setNotice(res.ok ? "saved" : "save failed");
-    setValues({});
     void load();
   }
 
@@ -125,18 +133,19 @@ export default function SettingsPage() {
                       <span>{label}</span>
                       {r?.set && (
                         <span className="text-xs text-zinc-500">
-                          current: {r.masked}
-                          {r.source === "env" ? " (env)" : ""}
+                          {r.source === "env" ? "from server env" : "saved"}
                         </span>
                       )}
                     </span>
                     <input
-                      type={suggestions ? "text" : "password"}
+                      type="text"
+                      autoComplete="off"
+                      spellCheck={false}
                       list={suggestions ? `${key}-suggestions` : undefined}
                       placeholder={placeholder}
                       value={values[key] ?? ""}
                       onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
-                      className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-white placeholder-zinc-600 focus:border-red-500 focus:outline-none"
+                      className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-sm text-white placeholder-zinc-600 focus:border-red-500 focus:outline-none"
                     />
                     {suggestions && (
                       <datalist id={`${key}-suggestions`}>
@@ -157,7 +166,8 @@ export default function SettingsPage() {
         </div>
       </form>
       <p className="text-xs text-zinc-600">
-        Values are stored in the platform database, shown masked, and never logged. Blank fields are left unchanged.
+        Values are stored in the platform database and shown in full here — this page is
+        owner-only. Blank fields are left unchanged; type __DELETE__ to remove one.
       </p>
     </main>
   );
