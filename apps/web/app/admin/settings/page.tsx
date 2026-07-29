@@ -21,9 +21,9 @@ const SECTIONS: { title: string; note: string; keys: { key: string; label: strin
         label: "Generation model",
         placeholder: "meta-llama/llama-3.3-70b-instruct",
         suggestions: [
+          "google/gemini-2.5-flash",
           "meta-llama/llama-3.3-70b-instruct",
           "openai/gpt-4o-mini",
-          "google/gemini-2.0-flash-001",
           "anthropic/claude-3.5-haiku",
           "mistralai/mistral-small-3.1-24b-instruct",
           "qwen/qwen-2.5-72b-instruct",

@@ -10,6 +10,7 @@ const sql = getSharedDb();
 const PRICING: [string, number, number][] = [
   ["llama-3.3-70b", 0.12, 0.3],
   ["gpt-4o-mini", 0.15, 0.6],
+  ["gemini-2.5-flash", 0.3, 2.5],
   ["gemini-2.0-flash", 0.1, 0.4],
   ["claude-3.5-haiku", 0.8, 4.0],
   ["mistral-small", 0.1, 0.3],
