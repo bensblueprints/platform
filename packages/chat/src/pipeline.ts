@@ -332,7 +332,7 @@ function ensurePairing(lines: GenLine[], rng: () => number): GenLine[] {
     );
     if (!answered) {
       out.push({
-        offsetSeconds: q.offsetSeconds + 20 + Math.floor(rng() * 70),
+        offsetSeconds: q.offsetSeconds + 8 + Math.floor(rng() * 7),
         persona: ADMIN_PERSONA,
         role: "admin",
         mode: "answer",
@@ -374,6 +374,8 @@ export async function runGenerationPipeline(
     transcribeFn?: () => Promise<TranscriptSegment[]>;
     /** Progress reporter for the admin UI job ticker. */
     onStage?: (stage: string) => void;
+    /** Raw per-beat lines as they are written (editor live view). */
+    onBeatLines?: (beatType: string, lines: GenLine[]) => void;
   },
 ): Promise<GenerationResult> {
   const usage = { beats: 0, llmCalls: 0, transcriptHash: "" };
@@ -540,6 +542,7 @@ export async function runGenerationPipeline(
     );
     usage.llmCalls++;
     generated.push(...beatLines);
+    opts.onBeatLines?.(beat.type, beatLines);
   }
   opts.onStage?.("validate");
   let lines = repairPersonaSpacing(ensurePairing(mergeLines(rng, [generated]), rng), roster, rng);

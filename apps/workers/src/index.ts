@@ -303,6 +303,19 @@ const genWorker = new Worker(
         audienceSize: w.chat_audience_size ?? 240,
         transcribeFn,
         onStage,
+        onBeatLines: (_bt, ls) => {
+          // stream raw lines into the draft so the editor shows them as
+          // they're written; the emit step replaces them with the final
+          // validated set
+          void (async () => {
+            for (const l of ls) {
+              await genSql`
+                insert into chat_scripts (webinar_id, offset_seconds, display_name, role, message, mode, sort_order, source, status)
+                values (${webinarId}, ${l.offsetSeconds}, ${l.persona}, ${l.role}, ${l.text}, ${l.mode}, ${l.offsetSeconds}, 'generated', 'draft')
+              `;
+            }
+          })().catch(() => {});
+        },
       });
 
       if (result.lines.length === 0) {

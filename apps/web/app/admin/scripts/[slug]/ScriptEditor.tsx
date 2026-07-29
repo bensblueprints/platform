@@ -136,6 +136,58 @@ export default function ScriptEditor({
     void loadEstimate();
   }
 
+  // live view while a generation is running: refresh the draft every 5s
+  useEffect(() => {
+    if (job?.status !== "running") return;
+    const t = setInterval(() => void load(), 5000);
+    return () => clearInterval(t);
+  }, [job?.status, load]);
+
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [transcript, setTranscript] = useState<{ start: number; end: number; text: string }[] | null>(
+    null,
+  );
+  const [promptCopied, setPromptCopied] = useState(false);
+
+  async function toggleTranscript() {
+    if (!showTranscript && !transcript) {
+      const res = await fetch(`/api/admin/scripts/${webinarId}/transcript`, {
+        headers: { "x-admin-key": adminKey },
+      });
+      if (res.ok) setTranscript((await res.json()).segments);
+    }
+    setShowTranscript((s) => !s);
+  }
+
+  const LLM_PROMPT = `You are writing the seeded live-chat script for a recorded webinar that plays as a "live" session. I will paste the transcript with [mm:ss] timestamps.
+
+Write a realistic audience chat log keyed to what the presenter actually says at each moment.
+
+Rules:
+- Output CSV only, one line per chat message, columns: Hour,Minute,Second,Name,Role,Message,Mode
+- Hour 0-7, Minute 0-59, Second 0-59 — the moment each message appears (the transcript moment it reacts to, plus 3-10 seconds)
+- Role is "Attendee" or "Admin". The admin's name is "Sarah (Support)".
+- Attendee modes: "chat" or "question". Admin modes: "answer", "highlighted", "tip".
+- Every attendee question gets an Admin "answer" about 10 seconds later with a specific, correct answer from the transcript.
+- Cluster lines in bursts of 2-4 right after moments that land — never evenly spaced. Busy at the start (greetings, cities), peak during the offer/pricing section.
+- 20+ different attendee names with mixed typing styles (lowercase, typos, occasional emoji).
+- No one posts more than ~8% of the lines, and the same person never posts twice within 45 seconds.
+- NEVER write earnings, income, or results claims in attendee messages. Attendees react, ask logistics questions, and talk pricing only.
+- Never reference anything that is not in the transcript — no invented features, numbers, or names.
+- When the presenter asks the audience to type something in the chat, many attendees actually type it.
+- Quote any message containing commas in double quotes.
+
+The webinar is ${Math.round(durationSeconds / 60)} minutes long and the room should feel like about ${audience ?? 5000} people are watching. Here is the transcript:
+
+[paste transcript here]
+`;
+
+  async function copyPrompt() {
+    await navigator.clipboard.writeText(LLM_PROMPT).catch(() => {});
+    setPromptCopied(true);
+    setTimeout(() => setPromptCopied(false), 2000);
+  }
+
   async function generate() {
     setNotice("queued…");
     const res = await fetch("/api/admin/generate", {
@@ -307,6 +359,42 @@ export default function ScriptEditor({
             </span>
           )}
       </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+        <button onClick={toggleTranscript} className="rounded border border-zinc-600 px-2 py-0.5">
+          {showTranscript ? "Hide transcript" : "View transcript"}
+        </button>
+        <a
+          href={`/api/admin/scripts/${webinarId}/transcript?download=1&key=${adminKey}`}
+          className="rounded border border-zinc-600 px-2 py-0.5"
+        >
+          Download transcript (.txt)
+        </a>
+        <button onClick={copyPrompt} className="rounded border border-zinc-600 px-2 py-0.5">
+          {promptCopied ? "Copied!" : "Copy LLM prompt"}
+        </button>
+        <span>
+          paste transcript + prompt into any LLM, then import the CSV it gives you (manage page →
+          Import chat)
+        </span>
+        {job?.status === "running" && (
+          <span className="text-emerald-300" data-testid="live-writing">
+            writing lines live below…
+          </span>
+        )}
+      </div>
+      {showTranscript && transcript && (
+        <section
+          className="max-h-64 overflow-y-auto rounded-lg bg-zinc-900 p-3 font-mono text-xs text-zinc-300"
+          data-testid="transcript-panel"
+        >
+          {transcript.map((s, i) => (
+            <p key={i}>
+              [{fmt(s.start)}] {s.text}
+            </p>
+          ))}
+        </section>
+      )}
 
       {/* density heatmap */}
       <div className="flex h-6 w-full gap-px overflow-hidden rounded" data-testid="density-strip" title="Lines per minute">
