@@ -55,6 +55,9 @@ export default async function AdminHome() {
             <Link href={`/w/${w.slug}`} className="text-xs text-sky-300 hover:underline" target="_blank">
               registration
             </Link>
+            <Link href={`/mock/${w.slug}`} className="text-xs font-medium text-red-300 hover:underline" target="_blank">
+              mock webinar
+            </Link>
             <Link href={`/admin/webinars/${w.id}`} className="text-xs text-sky-300 hover:underline">
               manage
             </Link>

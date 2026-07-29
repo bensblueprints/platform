@@ -58,6 +58,13 @@ export default async function WebinarHub({ params }: { params: Promise<{ id: str
           </p>
         </div>
         <div className="flex gap-3 text-sm">
+          <Link
+            href={`/mock/${w.slug}`}
+            target="_blank"
+            className="rounded bg-red-600 px-3 py-1.5 font-medium text-white hover:bg-red-500"
+          >
+            Mock webinar
+          </Link>
           <Link href={`/w/${w.slug}`} target="_blank" className="text-sky-300 hover:underline">
             registration page ↗
           </Link>
