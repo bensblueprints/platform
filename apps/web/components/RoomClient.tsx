@@ -246,11 +246,23 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
       />
       <div className="flex min-h-0 flex-1 flex-col gap-4 md:grid md:grid-cols-[1fr_320px] md:grid-rows-[minmax(0,1fr)]">
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
-          <Player
-            videoUrl={payload.webinar.videoUrl ?? ""}
-            videoRef={videoRef}
-            title={payload.webinar.title}
-          />
+          <div className="relative">
+            <Player
+              videoUrl={payload.webinar.videoUrl ?? ""}
+              videoRef={videoRef}
+              title={payload.webinar.title}
+            />
+            {mutedStart && (
+              <button
+                onClick={unmute}
+                className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-black/60"
+              >
+                <span className="animate-pulse rounded-lg bg-red-600 px-8 py-4 text-xl font-semibold shadow-lg">
+                  Tap for sound
+                </span>
+              </button>
+            )}
+          </div>
           {offset < 0 ? (
             <div
               data-testid="pre-start-gate"

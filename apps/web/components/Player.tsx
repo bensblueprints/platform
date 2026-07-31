@@ -46,7 +46,10 @@ export default function Player({
           defaultValue={1}
           className="w-24 accent-red-500"
           onChange={(e) => {
-            if (videoRef.current) videoRef.current.volume = Number(e.target.value);
+            if (videoRef.current) {
+              videoRef.current.volume = Number(e.target.value);
+              videoRef.current.muted = false;
+            }
           }}
         />
         <button onClick={toggleFullscreen} className="text-sm text-zinc-200 hover:text-white">
