@@ -26,6 +26,7 @@ export interface WebinarRow {
   waiting_body: string | null;
   waiting_image_url: string | null;
   waiting_badges: string | null;
+  fb_pixel_id: string | null;
   created_at: Date;
 }
 
@@ -142,6 +143,7 @@ export interface RoomPayload {
     videoUrl: string | null;
     showAttendeeCount: boolean;
     allowRealChat: boolean;
+    fbPixelId: string | null;
     curve: CurveConfig;
     waitingRoom: {
       headline: string | null;

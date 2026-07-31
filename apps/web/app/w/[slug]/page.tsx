@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import {  getSharedDb  } from "@platform/core";
 import { nextJitSlotMs } from "@platform/timeline";
 import RegisterForm from "../../../components/RegisterForm";
+import MetaPixel from "../../../components/MetaPixel";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,7 @@ export default async function RegisterPage({
       <Suspense fallback={null}>
         <RegisterForm slug={w.slug} nextSessionAtMs={nextSessionAtMs} />
       </Suspense>
+      {w.fb_pixel_id && <MetaPixel pixelId={w.fb_pixel_id} />}
     </main>
   );
 }

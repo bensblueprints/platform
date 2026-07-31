@@ -8,6 +8,7 @@ import { ChatRail, StatusBar, OfferPanel } from "@platform/room-ui";
 import { clock } from "../lib/clock";
 import { subscribeOfferTicks } from "../lib/realtime";
 import Player from "./Player";
+import MetaPixel from "./MetaPixel";
 
 function fmt(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
@@ -76,6 +77,19 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
   const [offset, setOffset] = useState(() =>
     offsetSeconds(payload.session.startsAtMs, payload.serverNowMs),
   );
+
+  // Stripe checkout returns to /room/{token}?purchased=1 — fire Purchase once.
+  // Read from window.location (not useSearchParams) to avoid a Suspense boundary.
+  const [purchaseParams, setPurchaseParams] = useState<Record<string, unknown> | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("purchased") !== "1") return;
+    const amount = Number(q.get("amount"));
+    setPurchaseParams({
+      currency: "USD",
+      ...(Number.isFinite(amount) && amount > 0 ? { value: amount } : {}),
+    });
+  }, []);
 
   useEffect(() => {
     clock.start();
@@ -316,6 +330,15 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
           realChat={{ token, allowRealChat: payload.webinar.allowRealChat }}
         />
       </div>
+      {payload.webinar.fbPixelId && (
+        <MetaPixel
+          pixelId={payload.webinar.fbPixelId}
+          events={[
+            { name: "ViewContent" },
+            ...(purchaseParams ? [{ name: "Purchase", params: purchaseParams }] : []),
+          ]}
+        />
+      )}
     </main>
   );
 }

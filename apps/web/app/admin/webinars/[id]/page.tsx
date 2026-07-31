@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { getSharedDb } from "@platform/core";
 import { getSessionUser, canAccessWebinar } from "../../../../lib/auth";
-import { AudienceSizeForm, CurveForm, DeleteWebinarButton, ImportChatForm, OfferForm, RosterForm, ScheduleForm, VideoUpload, WaitingRoomForm } from "../../../../components/HubForms";
+import { AudienceSizeForm, CurveForm, DeleteWebinarButton, ImportChatForm, OfferForm, RosterForm, ScheduleForm, TrackingForm, VideoUpload, WaitingRoomForm } from "../../../../components/HubForms";
 
 export const dynamic = "force-dynamic";
 
@@ -155,12 +155,13 @@ export default async function WebinarHub({ params }: { params: Promise<{ id: str
           ))}
         </section>
       )}
-      <OfferForm webinarId={w.id} />
+      <OfferForm webinarId={w.id} offers={offers.map((o: any) => ({ id: o.id as string, name: o.name as string }))} />
 
       <ImportChatForm webinarId={w.id} />
       <AudienceSizeForm webinarId={w.id} initial={w.chat_audience_size ?? 240} />
       <RosterForm webinarId={w.id} initial={roster.map((r: any) => r.display_name)} />
       <CurveForm webinarId={w.id} initial={curveInitial} />
+      <TrackingForm webinarId={w.id} initial={w.fb_pixel_id ?? null} />
       <DeleteWebinarButton webinarId={w.id} title={w.title} />
     </main>
   );

@@ -97,13 +97,50 @@ export function VideoUpload({ webinarId, hasVideo, duration }: { webinarId: stri
   );
 }
 
-export function OfferForm({ webinarId }: { webinarId: string }) {
+export function OfferForm({ webinarId, offers = [] }: { webinarId: string; offers?: { id: string; name: string }[] }) {
   const [form, setForm] = useState({
     name: "", headline: "", body: "", buttonText: "Get it now", buttonUrl: "",
     startOffsetSeconds: 1500, endOffsetSeconds: "", urgencyEnabled: true, urgencySeconds: 600,
     scarcityEnabled: false, inventoryTotal: 25, priceStartCents: "", priceIncrementCents: 0, priceCapCents: "",
   });
   const [state, setState] = useState<string | null>(null);
+  const [vi, setVi] = useState({ offerId: "", viUrl: "https://viralinvoice.onetimesuite.com", apiKey: "", invoiceId: "" });
+  const [viInvoices, setViInvoices] = useState<{ id: string; title: string; status: string; currency: string; priceCents: number | null }[] | null>(null);
+  const [viState, setViState] = useState<string | null>(null);
+
+  async function viCall(payload: Record<string, string>) {
+    const offerId = vi.offerId || offers[0]?.id;
+    const res = await fetch(`/api/admin/offers/${offerId}/vi-connect`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ viUrl: vi.viUrl, apiKey: vi.apiKey, ...payload }),
+    });
+    return { res, body: await res.json().catch(() => ({})) };
+  }
+
+  async function viList() {
+    setViState("listing invoices…");
+    setViInvoices(null);
+    const { res, body } = await viCall({ action: "list" });
+    if (res.ok) {
+      setViInvoices(body.invoices ?? []);
+      setViState(body.invoices?.length ? "pick an invoice, then Connect" : "no invoices on that Viral Invoice account");
+    } else {
+      setViState(`failed: ${body.message ?? body.error ?? res.status}`);
+    }
+  }
+
+  async function viConnect() {
+    if (!vi.invoiceId) return;
+    setViState("connecting…");
+    const { res, body } = await viCall({ action: "connect", invoiceId: vi.invoiceId });
+    if (res.ok) {
+      setForm({ ...form, buttonUrl: body.checkoutUrl });
+      setViState(`connected — button URL set to ${body.checkoutUrl} and the purchase webhook is registered in Viral Invoice`);
+    } else {
+      setViState(`failed: ${body.message ?? body.error ?? res.status}`);
+    }
+  }
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -158,6 +195,44 @@ export function OfferForm({ webinarId }: { webinarId: string }) {
         <button className={btn}>Create offer</button>
       </form>
       {state && <p className="mt-2 text-sm text-zinc-400">{state}</p>}
+      {offers.length > 0 && (
+        <div className="mt-4 border-t border-zinc-800 pt-4">
+          <h3 className="mb-2 text-sm font-medium">Viral Invoice</h3>
+          <p className="mb-3 text-xs text-zinc-500">
+            Create an API key in Viral Invoice → Settings → API Keys. The key is used once and never stored.
+          </p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label className="text-sm text-zinc-400">Offer to connect
+              <select value={vi.offerId || offers[0].id} onChange={(e) => setVi({ ...vi, offerId: e.target.value })} className={input}>
+                {offers.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </label>
+            <label className="text-sm text-zinc-400">Instance URL
+              <input value={vi.viUrl} onChange={(e) => setVi({ ...vi, viUrl: e.target.value })} className={input} />
+            </label>
+            <label className="text-sm text-zinc-400">API key
+              <input type="password" value={vi.apiKey} onChange={(e) => setVi({ ...vi, apiKey: e.target.value })} placeholder="vi_…" className={input} />
+            </label>
+            <div className="flex flex-wrap items-end gap-2">
+              <button type="button" onClick={viList} className="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium hover:bg-zinc-600">List invoices</button>
+              {viInvoices && viInvoices.length > 0 && (
+                <>
+                  <select value={vi.invoiceId} onChange={(e) => setVi({ ...vi, invoiceId: e.target.value })} className={input}>
+                    <option value="">pick an invoice…</option>
+                    {viInvoices.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.title} — {i.status}{i.priceCents != null ? ` — ${(i.priceCents / 100).toFixed(2)} ${i.currency}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={viConnect} disabled={!vi.invoiceId} className={btn}>Connect</button>
+                </>
+              )}
+            </div>
+          </div>
+          {viState && <p className="mt-2 text-sm text-zinc-400">{viState}</p>}
+        </div>
+      )}
     </section>
   );
 }
@@ -289,6 +364,44 @@ export function AudienceSizeForm({ webinarId, initial }: { webinarId: string; in
           className="w-28 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
         />
         <button onClick={save} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium hover:bg-red-500">
+          Save
+        </button>
+        {state && <span className="text-sm text-zinc-400">{state}</span>}
+      </div>
+    </section>
+  );
+}
+
+export function TrackingForm({ webinarId, initial }: { webinarId: string; initial: string | null }) {
+  const [pixelId, setPixelId] = useState(initial ?? "");
+  const [state, setState] = useState<string | null>(null);
+
+  async function save() {
+    setState("saving…");
+    const res = await fetch(`/api/admin/webinars/${webinarId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fbPixelId: pixelId.trim() }),
+    });
+    setState(res.ok ? "saved" : "failed — pixel IDs are 5-20 digits (or empty to disable)");
+  }
+
+  return (
+    <section className="rounded-lg bg-zinc-900 p-4">
+      <h2 className="mb-2 font-medium">Facebook Pixel</h2>
+      <p className="mb-2 text-xs text-zinc-500">
+        Fires PageView on the registration page, CompleteRegistration on the confirmation page, and
+        ViewContent / Purchase in the room. Find this in Meta Events Manager → Data Sources → your
+        pixel → Settings. Empty disables tracking.
+      </p>
+      <div className="flex items-center gap-3">
+        <input
+          value={pixelId}
+          onChange={(e) => setPixelId(e.target.value)}
+          placeholder="Facebook Pixel ID (digits only)"
+          className={input}
+        />
+        <button onClick={save} className={btn}>
           Save
         </button>
         {state && <span className="text-sm text-zinc-400">{state}</span>}

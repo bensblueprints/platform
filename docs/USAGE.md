@@ -103,12 +103,27 @@ Manage page → **New offer**:
 
 ## 6c. Counting sales from Viral Invoice (or any external checkout)
 
-The price ladder only rises on real sales. Point the offer's Button URL at your Viral Invoice checkout, then bridge the payment back:
+The price ladder only rises on real sales. For Viral Invoice the wiring is one-time, from the offer form:
 
-1. `/admin/settings` → Purchase bridge: set a shared secret.
-2. In Viral Invoice (or a GHL flow/Zapier), on payment success call:
-   `POST /api/offers/<offerId>/purchase` with `{ "secret": "…", "amountCents": 10000, "externalRef": "<invoice id>" }`.
-3. The ladder increments exactly once per `externalRef` (idempotent), and the new price pushes live into every open room.
+1. `/admin/settings` → Purchase bridge: set a shared secret (`PURCHASE_WEBHOOK_SECRET`) — Viral Invoice signs every payment callback with it.
+2. In Viral Invoice → Settings → API Keys, create an API key.
+3. Manage page → **New offer** → **Viral Invoice**: paste the instance URL and the key, **List invoices**, pick the invoice, **Connect**. That sets the offer's Button URL to the invoice checkout and registers this platform's purchase webhook on that invoice — done. The key is used once and never stored.
+
+Once connected, each completed Viral Invoice payment is bridged back automatically: the ladder increments exactly once per payment (idempotent by external reference) and the new price pushes live into every open room — no manual webhook wiring needed.
+
+Any other external checkout (a GHL flow, Zapier/Make) can still bridge sales manually: on payment success call
+`POST /api/offers/<offerId>/purchase` with `{ "secret": "…", "amountCents": 10000, "externalRef": "<invoice id>" }`.
+
+## 6d. Facebook (Meta) Pixel tracking
+
+Webinar hub → **Facebook Pixel**: paste your pixel ID (digits only; empty disables). Find it in Meta Events Manager → Data Sources → your pixel → Settings. Once set, the pixel loads on that webinar's pages and fires:
+
+- **PageView** — registration page (`/w/[slug]`), confirmation page, and the room (every page also fires a base PageView).
+- **CompleteRegistration** — the post-registration confirmation page.
+- **ViewContent** — the room.
+- **Purchase** — the room, when it loads with `?purchased=1` (the built-in Stripe Checkout success redirect). Add `&amount=49.00` to include a `value` (currency is always USD).
+
+The Viral Invoice checkout page itself is hosted externally, so paste the same pixel ID into Viral Invoice's own tracking/pixel settings too — `Purchase` from the Stripe flow fires on the return to the room.
 
 ## 7. Publish and promote
 

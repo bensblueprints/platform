@@ -20,6 +20,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const days = Array.isArray(body.recurringDays) ? body.recurringDays.map(Number) : undefined;
   const times = Array.isArray(body.recurringTimes) ? body.recurringTimes : undefined;
 
+  // undefined → untouched; empty string → null (pixel disabled); otherwise 5-20 digits.
+  const fbPixelId =
+    body.fbPixelId === undefined ? undefined : String(body.fbPixelId ?? "").trim() || null;
+  if (fbPixelId != null && !/^\d{5,20}$/.test(fbPixelId)) {
+    return Response.json({ error: "invalid_fb_pixel_id" }, { status: 400 });
+  }
+
   const updated = await sql`
     update webinars set
       title = coalesce(${body.title ?? null}, title),
@@ -37,7 +44,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       chat_audience_size = coalesce(${body.chatAudienceSize ?? null}, chat_audience_size),
       waiting_headline = coalesce(${body.waitingHeadline ?? null}, waiting_headline),
       waiting_body = coalesce(${body.waitingBody ?? null}, waiting_body),
-      waiting_badges = coalesce(${body.waitingBadges ?? null}, waiting_badges)
+      waiting_badges = coalesce(${body.waitingBadges ?? null}, waiting_badges),
+      fb_pixel_id = ${fbPixelId === undefined ? sql`fb_pixel_id` : fbPixelId}
     where id = ${id}::uuid
     returning id
   `;

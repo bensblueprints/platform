@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import {  getSharedDb  } from "@platform/core";
+import MetaPixel from "../../../../components/MetaPixel";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function ConfirmedPage({
 
   const sql = getSharedDb();
   const rows = await sql<any[]>`
-    select r.first_name, r.timezone, r.access_token, w.title, s.starts_at, w.duration_seconds
+    select r.first_name, r.timezone, r.access_token, w.title, s.starts_at, w.duration_seconds, w.fb_pixel_id
     from registrants r
     join webinars w on w.id = r.webinar_id
     left join sessions s on s.id = r.session_id
@@ -66,6 +67,9 @@ export default async function ConfirmedPage({
       >
         {when ? "Go to the room" : "Join the session now"}
       </Link>
+      {r.fb_pixel_id && (
+        <MetaPixel pixelId={r.fb_pixel_id} events={[{ name: "CompleteRegistration" }]} />
+      )}
     </main>
   );
 }

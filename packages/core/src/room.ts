@@ -70,6 +70,7 @@ export function toRoomPayload(
     | "waiting_body"
     | "waiting_image_url"
     | "waiting_badges"
+    | "fb_pixel_id"
   >,
   s: Pick<SessionRow, "id" | "starts_at" | "seed">,
   r: Pick<RegistrantRow, "first_name">,
@@ -102,6 +103,7 @@ export function toRoomPayload(
       videoUrl: w.video_url,
       showAttendeeCount: w.show_attendee_count ?? true,
       allowRealChat: w.allow_real_chat ?? true,
+      fbPixelId: w.fb_pixel_id ?? null,
       curve,
       waitingRoom,
     },
