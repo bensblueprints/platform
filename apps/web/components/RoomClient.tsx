@@ -235,7 +235,7 @@ export default function RoomClient({ payload, token }: { payload: RoomPayload; t
   }
 
   return (
-    <main className="mx-auto flex h-dvh max-w-6xl flex-col gap-4 overflow-hidden p-4">
+    <main className="mx-auto flex h-screen max-w-6xl flex-col gap-4 overflow-hidden p-4 supports-[height:100dvh]:h-dvh">
       <StatusBar
         title={payload.webinar.title}
         showCount={payload.webinar.showAttendeeCount}

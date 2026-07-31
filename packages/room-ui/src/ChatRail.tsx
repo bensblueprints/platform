@@ -137,7 +137,7 @@ export default function ChatRail({
   return (
     <section
       aria-label="Live chat"
-      className="relative flex min-h-[140px] flex-1 flex-col rounded-lg bg-zinc-900 md:min-h-0"
+      className="relative flex max-h-[40vh] min-h-[140px] flex-1 flex-col rounded-lg bg-zinc-900 md:max-h-none md:min-h-0"
     >
       <header className="border-b border-zinc-800 px-4 py-2 text-sm font-medium text-zinc-300">
         Live chat
